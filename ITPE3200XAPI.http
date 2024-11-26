@@ -1,0 +1,6 @@
+@ITPE3200XAPI_HostAddress = http://localhost:5094
+
+GET {{ITPE3200XAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
