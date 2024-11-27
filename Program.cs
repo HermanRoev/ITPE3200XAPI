@@ -4,6 +4,9 @@ using ITPE3200XAPI.Models;
 using Serilog;
 using Serilog.Events;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +25,26 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options => {
 })
 .AddEntityFrameworkStores<ApplicationDbContext>();
 
+// Add JWT Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+    };
+});
+
 // Add services to the container.
 builder.Services.AddControllers().AddNewtonsoftJson(options =>
 {
@@ -37,7 +60,7 @@ builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 var loggerConfiguration = new LoggerConfiguration()
-    .MinimumLevel.Information() // levels: Trace< Information < Warning < Erorr < Fatal
+    .MinimumLevel.Information() // levels: Trace< Information < Warning < Error < Fatal
     .WriteTo.File($"APILogs/app_{DateTime.Now:yyyyMMdd_HHmmss}.log");
 
 loggerConfiguration.Filter.ByExcluding(e => e.Properties.TryGetValue("SourceContext", out var value) &&
@@ -60,6 +83,8 @@ if (app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseCors("CorsPolicy");
 app.UseRouting();
+app.UseAuthentication(); // Add Authentication middleware
+app.UseAuthorization();  // Add Authorization middleware
 app.MapControllerRoute(
     name: "api",
     pattern: "{controller}/{action=Index}/{id?}");
