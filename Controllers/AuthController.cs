@@ -28,28 +28,42 @@ namespace ITPE3200XAPI.Controllers
 
         // 1. Register User
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterDto model)
+        public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
         {
-            if (!ModelState.IsValid)
+            // Check if the username or email already exists
+            var existingUserByUsername = await _userManager.FindByNameAsync(registerDto.Username);
+            if (existingUserByUsername != null)
             {
-                return BadRequest(ModelState);
+                return BadRequest(new { message = "Username is already taken." });
             }
 
+            var existingUserByEmail = await _userManager.FindByEmailAsync(registerDto.Email);
+            if (existingUserByEmail != null)
+            {
+                return BadRequest(new { message = "Email is already taken." });
+            }
+
+            // Create a new ApplicationUser object
             var user = new ApplicationUser
             {
-                UserName = model.Username,
-                Email = model.Email
+                UserName = registerDto.Username,
+                Email = registerDto.Email
             };
 
-            var result = await _userManager.CreateAsync(user, model.Password);
+            // Attempt to create the user with the provided password
+            var result = await _userManager.CreateAsync(user, registerDto.Password);
 
-            if (result.Succeeded)
+            // If the password or other validations fail, return the errors
+            if (!result.Succeeded)
             {
-                return Ok(new { Message = "User registered successfully!" });
+                var errors = result.Errors.Select(e => new { e.Code, e.Description }).ToList();
+                return BadRequest(errors);
             }
 
-            return BadRequest(result.Errors);
+            // Optionally, sign the user in or return a success response
+            return Ok(new { message = "User registered successfully!" });
         }
+
 
         // 2. Login User
         [HttpPost("login")]
