@@ -5,7 +5,6 @@ namespace ITPE3200XAPI.ViewModels;
 public class PostViewModel
 {
         public string? PostId { get; set; }
-        public string? Title { get; set; }
         public string? Content { get; set; }
         public string? ProfilePicture { get; set; }
         public string? UserName { get; set; }

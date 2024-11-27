@@ -1,8 +1,9 @@
+using System.Security.Claims;
 using ITPE3200XAPI.DAL.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
 using Microsoft.AspNetCore.Identity;
-using ITPE3200XAPI.ViewModels;
+using ITPE3200XAPI.DTOs;
 
 namespace ITPE3200XAPI.Controllers;
 
@@ -43,14 +44,14 @@ public class HomeController : Controller
         posts = posts.ToList();
 
         // Get the current user's ID (can be null if the user is not logged in)
-        var currentUserId = _userManager.GetUserId(User);
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         // Construct the list of PostViewModels to pass to the view
-        var postViewModels = posts.Select(p => new PostViewModel
+        var postDtos = posts.Select(p => new PostDto
         {
             PostId = p.PostId,
             Content = p.Content,
-            Images = p.Images.ToList(),
+            ImageUrls = p.Images?.Select(img => img.ImageUrl).ToList(),
             UserName = p.User.UserName,
             ProfilePicture = p.User.ProfilePictureUrl,
             IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
@@ -60,21 +61,21 @@ public class HomeController : Controller
             LikeCount = p.Likes.Count,
             CommentCount = p.Comments.Count,
             Comments = p.Comments
-                .OrderBy(c => c.CreatedAt) // Order comments by CreatedAt (ascending)
-                .Select(c => new CommentViewModel
+                .OrderBy(c => c.CreatedAt)
+                .Take(20) // Limit number of comments returned
+                .Select(c => new CommentDto
                 {
-                    IsCreatedByCurrentUser = c.UserId == currentUserId,
                     CommentId = c.CommentId,
                     UserName = c.User.UserName,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
-                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt)
+                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt),
+                    IsCreatedByCurrentUser = c.UserId == currentUserId
                 })
                 .ToList()
         }).ToList();
 
-        // Return the view with the list of PostViewModels
-        return Ok(postViewModels);
+        return Ok(postDtos);
     }
 
     // Calculates the time since a post or comment was created

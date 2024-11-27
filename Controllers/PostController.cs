@@ -1,7 +1,6 @@
 using ITPE3200XAPI.DAL.Repositories;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.ViewModels;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
