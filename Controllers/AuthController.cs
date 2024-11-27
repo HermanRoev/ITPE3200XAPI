@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DTOs.Auth;
 using System;
+using System.Linq;
 
 namespace ITPE3200XAPI.Controllers
 {
@@ -31,39 +32,43 @@ namespace ITPE3200XAPI.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
         {
             // Check if the username or email already exists
-            var existingUserByUsername = await _userManager.FindByNameAsync(registerDto.Username);
-            if (existingUserByUsername != null)
+            if (await _userManager.FindByNameAsync(registerDto.Username) != null)
             {
                 return BadRequest(new { message = "Username is already taken." });
             }
 
-            var existingUserByEmail = await _userManager.FindByEmailAsync(registerDto.Email);
-            if (existingUserByEmail != null)
+            if (await _userManager.FindByEmailAsync(registerDto.Email) != null)
             {
                 return BadRequest(new { message = "Email is already taken." });
             }
 
-            // Create a new ApplicationUser object
+            // Create the user object
             var user = new ApplicationUser
             {
                 UserName = registerDto.Username,
                 Email = registerDto.Email
             };
 
-            // Attempt to create the user with the provided password
-            var result = await _userManager.CreateAsync(user, registerDto.Password);
-
-            // If the password or other validations fail, return the errors
-            if (!result.Succeeded)
+            // Attempt to create the user
+            var createResult = await _userManager.CreateAsync(user, registerDto.Password);
+            if (!createResult.Succeeded)
             {
-                var errors = result.Errors.Select(e => new { e.Code, e.Description }).ToList();
+                // Return validation errors if user creation fails
+                var errors = createResult.Errors.Select(e => new { e.Code, e.Description }).ToList();
                 return BadRequest(errors);
             }
 
-            // Optionally, sign the user in or return a success response
-            return Ok(new { message = "User registered successfully!" });
-        }
+            // Attempt to log in the user
+            var signInResult = await _signInManager.PasswordSignInAsync(user.UserName, registerDto.Password, false, false);
+            if (!signInResult.Succeeded)
+            {
+                // Return an error without deleting the user
+                return Ok(new { message = "Registration successful. Please log in manually." });
+            }
 
+            // Success response
+            return Ok(new { message = "User registered and logged in successfully!" });
+        }
 
         // 2. Login User
         [HttpPost("login")]
@@ -74,16 +79,29 @@ namespace ITPE3200XAPI.Controllers
                 return BadRequest(ModelState);
             }
 
-            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
+            // Check if input is an email or username
+            ApplicationUser user;
+            if (model.EmailOrUsername.Contains("@"))
+            {
+                // It's an email
+                user = await _userManager.FindByEmailAsync(model.EmailOrUsername);
+            }
+            else
+            {
+                // It's a username
+                user = await _userManager.FindByNameAsync(model.EmailOrUsername);
+            }
+
+            if (user == null)
+            {
+                return Unauthorized(new { Message = "Invalid email/username or password!" });
+            }
+
+            // Attempt to sign in with the retrieved username
+            var result = await _signInManager.PasswordSignInAsync(user.UserName, model.Password, false, false);
 
             if (result.Succeeded)
             {
-                var user = await _userManager.FindByEmailAsync(model.Email);
-                if (user == null)
-                {
-                    return Unauthorized(new { Message = "Invalid credentials" });
-                }
-
                 // Generate JWT Token
                 var token = GenerateJwtToken(user);
 
@@ -95,7 +113,7 @@ namespace ITPE3200XAPI.Controllers
                 });
             }
 
-            return Unauthorized(new { Message = "Invalid email or password!" });
+            return Unauthorized(new { Message = "Invalid email/username or password!" });
         }
 
         // 3. Logout User
@@ -103,7 +121,7 @@ namespace ITPE3200XAPI.Controllers
         public async Task<IActionResult> Logout()
         {
             await _signInManager.SignOutAsync();
-            return Ok(new { Message = "User logged out successfully!" });
+            return Ok(new { message = "User logged out successfully!" });
         }
 
         // 4. Check if User is Logged In
@@ -112,10 +130,10 @@ namespace ITPE3200XAPI.Controllers
         {
             if (User.Identity != null && User.Identity.IsAuthenticated)
             {
-                return Ok(new { IsLoggedIn = true, Username = User.Identity.Name });
+                return Ok(new { isLoggedIn = true, username = User.Identity.Name });
             }
 
-            return Ok(new { IsLoggedIn = false });
+            return Ok(new { isLoggedIn = false });
         }
 
         // Helper: Generate JWT Token
