@@ -1,4 +1,4 @@
-namespace ITPE3200XAPI.DTOs;
+namespace ITPE3200XAPI.DTOs.Post;
 
 public class PostDto
 {
