@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DAL.Repositories;
+using ITPE3200XAPI.DTOs.Auth;
 using Microsoft.AspNetCore.Identity;
 using ITPE3200XAPI.ViewModels;
 
@@ -316,5 +317,25 @@ public class ProfileController : Controller
         }
         
         return RedirectToAction("Profile", new { username });
+    }
+    
+    // GET: Minimal User Data for Side Menu
+    [HttpGet("basic")]
+    [Authorize]
+    public async Task<IActionResult> GetBasicProfile()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        var basicProfile = new SideMenuProfileDto
+        {
+            Username = user.UserName,
+            ProfilePictureUrl = user.ProfilePictureUrl ?? "/path/to/default-avatar.jpg"
+        };
+
+        return Ok(basicProfile);
     }
 }
