@@ -74,7 +74,10 @@ public class HomeController : Controller
                 })
                 .ToList()
         }).ToList();
-
+        
+        // Simulate slow connection
+        await Task.Delay(5000);
+        
         return Ok(postDtos);
     }
 
