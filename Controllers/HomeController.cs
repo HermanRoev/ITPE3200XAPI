@@ -3,7 +3,7 @@ using ITPE3200XAPI.DAL.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
 using Microsoft.AspNetCore.Identity;
-using ITPE3200XAPI.DTOs;
+using ITPE3200XAPI.DTOs.Post;
 
 namespace ITPE3200XAPI.Controllers;
 

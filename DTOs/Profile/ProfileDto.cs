@@ -1,4 +1,4 @@
-namespace ITPE3200XAPI.DTOs.Auth
+namespace ITPE3200XAPI.DTOs.Profile
 {
     public class ProfileDto
     {
