@@ -9,6 +9,8 @@ using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DTOs.Auth;
 using System;
 using System.Linq;
+using ITPE3200XAPI.DTOs.Setting;
+using Microsoft.DotNet.Scaffolding.Shared.Messaging;
 
 namespace ITPE3200XAPI.Controllers
 {
@@ -122,6 +124,60 @@ namespace ITPE3200XAPI.Controllers
         {
             await _signInManager.SignOutAsync();
             return Ok(new { message = "User logged out successfully!" });
+        }
+        
+        // 4. Change Password 
+        [HttpPost("change-Password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState); // Return validation errors
+            }
+
+            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            if (user == null)
+            {
+                return Unauthorized(new { message = "User not found." });
+            }
+
+            // Ensure new password and confirm new password match
+            if (model.NewPassword != model.ConfirmNewPassword)
+            {
+                return BadRequest(new { message = "New password and confirmation password do not match." });
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, model.OldPassword, model.NewPassword);
+            if (!result.Succeeded)
+            {
+                return BadRequest(new { message = "Password change failed.", errors = result.Errors });
+            }
+
+            return Ok(new { message = "Password changed successfully." });
+        }
+        
+        // 5. Change Email 
+        [HttpPost("change-Email")]
+        public async Task<IActionResult> ChangeEmail([FromBody] ChangeEmailDto model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState); // Return validation errors
+            }
+
+            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            if (user == null)
+            {
+                return Unauthorized(new { message = "User not found." });
+            }
+
+            var result = await _userManager.SetEmailAsync(user, model.NewEmail);
+            if (!result.Succeeded)
+            {
+                return BadRequest(new { message = "Email change failed."});
+            }
+
+            return Ok(new { message = "Email changed successfully." });
         }
 
         // Helper: Generate JWT Token
