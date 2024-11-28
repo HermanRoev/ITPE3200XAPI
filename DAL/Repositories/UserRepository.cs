@@ -13,6 +13,19 @@ namespace ITPE3200XAPI.DAL.Repositories
             _context = context;
             _logger = logger;
         }
+        
+        public async Task<int> GetFollowerCountAsync(string userId)
+        {
+            return await _context.Followers
+                .CountAsync(f => f.FollowedUserId == userId);
+        }
+
+        public async Task<int> GetFollowingCountAsync(string userId)
+        {
+            return await _context.Followers
+                .CountAsync(f => f.FollowerUserId == userId);
+        }
+
 
         public async Task<bool> AddFollowerAsync(string followerUserId, string followedUserId)
         {
