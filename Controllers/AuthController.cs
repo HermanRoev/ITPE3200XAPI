@@ -124,18 +124,6 @@ namespace ITPE3200XAPI.Controllers
             return Ok(new { message = "User logged out successfully!" });
         }
 
-        // 4. Check if User is Logged In
-        [HttpGet("isLoggedIn")]
-        public IActionResult IsLoggedIn()
-        {
-            if (User.Identity != null && User.Identity.IsAuthenticated)
-            {
-                return Ok(new { isLoggedIn = true, username = User.Identity.Name });
-            }
-
-            return Ok(new { isLoggedIn = false });
-        }
-
         // Helper: Generate JWT Token
         private string GenerateJwtToken(ApplicationUser user)
         {
