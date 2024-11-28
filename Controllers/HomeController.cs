@@ -57,7 +57,6 @@ public class HomeController : Controller
             IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
             IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
             IsOwnedByCurrentUser = p.UserId == currentUserId,
-            HomeFeed = true,
             LikeCount = p.Likes.Count,
             CommentCount = p.Comments.Count,
             Comments = p.Comments

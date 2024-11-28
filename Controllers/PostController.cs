@@ -2,7 +2,6 @@ using ITPE3200XAPI.DAL.Repositories;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DTOs.Post;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -13,20 +12,17 @@ namespace ITPE3200XAPI.Controllers
     [Authorize]
     public class PostController : ControllerBase
     {
-        private readonly UserManager<ApplicationUser> _userManager;
         private readonly IPostRepository _postRepository;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly ILogger<PostController> _logger;
 
         public PostController(
             ILogger<PostController> logger,
-            UserManager<ApplicationUser> userManager,
             IPostRepository postRepository,
             IWebHostEnvironment webHostEnvironment
         )
         {
             _logger = logger;
-            _userManager = userManager;
             _postRepository = postRepository;
             _webHostEnvironment = webHostEnvironment;
         }
@@ -220,10 +216,12 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
+        [AllowAnonymous]
         [HttpPost("DeleteComment")]
         public async Task<IActionResult> DeleteComment([FromQuery] string postId, [FromQuery] string commentId)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine("UserId: " + userId);
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -235,7 +233,7 @@ namespace ITPE3200XAPI.Controllers
                 return NotFound(new { message = "Post not found." });
             }
             
-            var result = await _postRepository.DeleteCommentAsync(postId, commentId);
+            var result = await _postRepository.DeleteCommentAsync(commentId, userId);
             if (!result)
             {
                 _logger.LogError("Failed to delete comment {CommentId} from PostId: {PostId} by UserId: {UserId}", commentId, postId, userId);
@@ -246,6 +244,7 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
+        // TODO: Implement Image delete from file system
         [HttpPost("DeletePost/{postId}")]
         public async Task<IActionResult> DeletePost(string postId)
         {
