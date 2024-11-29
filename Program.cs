@@ -12,7 +12,33 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add Swagger for API documentation
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    // Add JWT authentication support
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Enter 'Bearer' [space] and then your valid token in the text input below.\nExample: Bearer eyJhbGciOiJIUzI1NiIs...",
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
 
 // Set up database connection
 var connectionString = builder.Configuration.GetConnectionString("ApplicationDbContextConnection") 
@@ -66,15 +92,19 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", builder =>
     {
-        builder.AllowAnyOrigin()
+        builder.WithOrigins("http://localhost:3000") // Replace with React app URL
                .AllowAnyMethod()
-               .AllowAnyHeader();
+               .AllowAnyHeader()
+               .AllowCredentials();
     });
 });
 
 // Register custom repositories for dependency injection
 builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+
+// Register IHttpContextAccessor for building base URLs
+builder.Services.AddHttpContextAccessor();
 
 // Configure logging with Serilog
 var loggerConfiguration = new LoggerConfiguration()
@@ -100,11 +130,27 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseStaticFiles();
+// Apply CORS policy for cross-origin requests
 app.UseCors("CorsPolicy");
+
+// Serve static files from wwwroot
+app.UseStaticFiles();
+
+// Ensure the 'uploads' directory exists
+var uploadsPath = Path.Combine(app.Environment.WebRootPath, "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+// Enable routing
 app.UseRouting();
-app.UseAuthentication(); // Add Authentication middleware
-app.UseAuthorization();  // Add Authorization middleware
+
+// Add authentication and authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Map API controller routes
 app.MapControllerRoute(
     name: "api",
     pattern: "{controller}/{action=Index}/{id?}");

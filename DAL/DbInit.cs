@@ -24,9 +24,9 @@ namespace ITPE3200XAPI.DAL
                 // Create users
                 var users = new List<ApplicationUser>
                 {
-                    new ApplicationUser { UserName = "user1@example.com", Email = "user1@example.com", ProfilePictureUrl = "/images/test2.jpg" },
-                    new ApplicationUser { UserName = "user2", Email = "user2@example.com", ProfilePictureUrl = "/images/test2.jpg" },
-                    new ApplicationUser { UserName = "user3", Email = "user3@example.com", ProfilePictureUrl = "/images/test2.jpg" }
+                    new ApplicationUser { UserName = "user1@example.com", Email = "user1@example.com", ProfilePictureUrl = "/uploads/test3.jpg" },
+                    new ApplicationUser { UserName = "user2", Email = "user2@example.com", ProfilePictureUrl = "/uploads/test4.jpg" },
+                    new ApplicationUser { UserName = "user3", Email = "user3@example.com", ProfilePictureUrl = "/uploads/test5.jpg" }
                 };
 
                 foreach (var user in users)
@@ -61,13 +61,9 @@ namespace ITPE3200XAPI.DAL
                 // Create post images
                 var postImages = new List<PostImage>
                 {
-                    new PostImage(postId: post1.PostId, imageUrl: "/images/test.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-29) },
-                    new PostImage(postId: post2.PostId, imageUrl: "/images/test.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-19) },
-                    new PostImage(postId: post3.PostId, imageUrl: "/images/test.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-9) },
-                    // Additional images for post3
-                    new PostImage(postId: post3.PostId, imageUrl: "/images/test3.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-8) },
-                    new PostImage(postId: post3.PostId, imageUrl: "/images/test4.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-7) },
-                    new PostImage(postId: post3.PostId, imageUrl: "/images/test5.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-6) }
+                    new PostImage(postId: post1.PostId, imageUrl: "/uploads/test3.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-29) },
+                    new PostImage(postId: post2.PostId, imageUrl: "/uploads/test4.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-19) },
+                    new PostImage(postId: post3.PostId, imageUrl: "/uploads/test5.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-9) }
                 };
                 context.PostImages.AddRange(postImages);
                 context.SaveChanges();
