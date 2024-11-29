@@ -41,13 +41,13 @@ public class HomeController : Controller
         }
 
         // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
-        posts = posts.ToList();
+        dynamicPosts = dynamicPosts.ToList();
 
         // Get the current user's ID (can be null if the user is not logged in)
         var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         // Construct the list of postDtos to pass to the frontend
-        var postDtos = posts.Select(p => new PostDto
+        var postDtos = dynamicPosts.Select(p => new PostDto
         {
             PostId = p.PostId,
             Content = p.Content,
