@@ -61,9 +61,18 @@ namespace ITPE3200XAPI.DAL
                 // Create post images
                 var postImages = new List<PostImage>
                 {
-                    new PostImage(postId: post1.PostId, imageUrl: "/uploads/test3.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-29) },
-                    new PostImage(postId: post2.PostId, imageUrl: "/uploads/test4.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-19) },
-                    new PostImage(postId: post3.PostId, imageUrl: "/uploads/test5.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-9) }
+                    // Post 1 with multiple images
+                    new PostImage(postId: post1.PostId, imageUrl: "/uploads/test3.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-60) },
+                    new PostImage(postId: post1.PostId, imageUrl: "/uploads/test4.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-50) },
+                    new PostImage(postId: post1.PostId, imageUrl: "/uploads/test5.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-40) },
+
+                    // Post 2 with one image
+                    new PostImage(postId: post2.PostId, imageUrl: "/uploads/test4.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-30) },
+
+                    // Post 3 with multiple images
+                    new PostImage(postId: post3.PostId, imageUrl: "/uploads/test5.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-20) },
+                    new PostImage(postId: post3.PostId, imageUrl: "/uploads/test3.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-10) },
+                    new PostImage(postId: post3.PostId, imageUrl: "/uploads/test4.jpg") { CreatedAt = DateTime.UtcNow.AddMinutes(-5) }
                 };
                 context.PostImages.AddRange(postImages);
                 context.SaveChanges();
