@@ -261,6 +261,12 @@ namespace ITPE3200XAPI.Controllers
             {
                 return NotFound(new { message = "Post not found." });
             }
+            
+            // Delete image files from the file system
+            foreach (var image in post.Images)
+            {
+                DeleteImageFile(image.ImageUrl);
+            }
 
             var result = await _postRepository.DeletePostAsync(postId, userId);
             if (!result)
@@ -270,6 +276,125 @@ namespace ITPE3200XAPI.Controllers
             }
 
             return Ok(new { message = "Post deleted successfully." });
+        }
+        
+    [HttpPost("editpost")]
+    [Authorize]
+    public async Task<IActionResult> EditPost([FromForm] EditPostDto dto)
+    {
+        // Validate the DTO
+        if (string.IsNullOrEmpty(dto.Content))
+        {
+            return BadRequest(new { message = "Content is required." });
+        }
+        
+        if (dto.ImageFiles == null || !dto.ImageFiles.Any())
+        {
+            return BadRequest(new { message = "At least one image is required." });
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(new { message = "User not found." });
+        }
+
+        var postToUpdate = await _postRepository.GetPostByIdAsync(dto.PostId!);
+        
+        if (postToUpdate == null)
+        {
+            return NotFound(new { message = "Post not found." });
+        }
+
+        // Check ownership
+        if (postToUpdate.UserId != userId)
+        {
+            return Forbid();
+        }
+
+        // Update the content
+        postToUpdate.Content = dto.Content;
+
+        // Prepare lists to hold images to delete and add
+        var imagesToDelete = new List<PostImage>();
+        var imagesToAdd = new List<PostImage>();
+        
+        // Delete existing images
+        foreach (var image in postToUpdate.Images.ToList())
+        {
+            DeleteImageFile(image.ImageUrl);
+            imagesToDelete.Add(image);
+        }
+
+        // Add new images
+        foreach (var imageFile in dto.ImageFiles)
+        {
+            if (imageFile.Length > 0)
+            {
+                // Validate the image file
+                if (!IsImageFile(imageFile))
+                {
+                    return BadRequest(new { message = "One or more files are not valid images." });
+                }
+
+                // Generate a unique file name
+                var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(imageFile.FileName)}";
+                var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
+                var filePath = Path.Combine(uploads, fileName);
+
+                // Ensure the uploads directory exists
+                if (!Directory.Exists(uploads))
+                {
+                    Directory.CreateDirectory(uploads);
+                }
+
+                // Save the image to the server
+                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                {
+                    await imageFile.CopyToAsync(fileStream);
+                }
+
+                // Create PostImage entity and add to the list
+                var imageEntity = new PostImage(postToUpdate.PostId, $"/uploads/{fileName}");
+                imagesToAdd.Add(imageEntity);
+            }
+        }
+
+        // Save changes to the database
+        var result = await _postRepository.UpdatePostAsync(postToUpdate, imagesToDelete, imagesToAdd);
+
+        if (!result)
+        {
+            _logger.LogError("[PostController][EditPost] Error updating post in database.");
+            return StatusCode(500, new { message = "An error occurred while updating the post." });
+        }
+
+        // Optionally, fetch the updated post to return
+        var updatedPostDto = await GetPostDtoById(dto.PostId!);
+
+        return Ok(updatedPostDto);
+    }
+        
+        // Deletes an image file from the file system
+        private void DeleteImageFile(string imageUrl)
+        {
+            try
+            {
+                // Convert the image URL to a file path
+                var wwwRootPath = _webHostEnvironment.WebRootPath;
+                var filePath = Path.Combine(wwwRootPath, imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+                if (System.IO.File.Exists(filePath))
+                {
+                    System.IO.File.Delete(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception
+                _logger.LogError(ex, "[PostController][DeleteImageFile] Error deleting image file: {ImageUrl}", imageUrl);
+            }
         }
 
         // GET: api/Post/GetPostById/{postId}
