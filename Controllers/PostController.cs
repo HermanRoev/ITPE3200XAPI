@@ -26,8 +26,6 @@ namespace ITPE3200XAPI.Controllers
             _postRepository = postRepository;
             _webHostEnvironment = webHostEnvironment;
         }
-    
-        // TODO: Implement EditPost method
         
         // POST: api/Post/CreatePost
         [HttpPost("CreatePost")]
@@ -246,7 +244,6 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
-        // TODO: Implement Image delete from file system
         [HttpPost("DeletePost/{postId}")]
         public async Task<IActionResult> DeletePost(string postId)
         {
