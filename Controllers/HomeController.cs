@@ -3,7 +3,7 @@ using ITPE3200XAPI.DAL.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
 using Microsoft.AspNetCore.Identity;
-using ITPE3200XAPI.DTOs;
+using ITPE3200XAPI.DTOs.Post;
 
 namespace ITPE3200XAPI.Controllers;
 
@@ -46,7 +46,7 @@ public class HomeController : Controller
         // Get the current user's ID (can be null if the user is not logged in)
         var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        // Construct the list of PostViewModels to pass to the view
+        // Construct the list of postDtos to pass to the frontend
         var postDtos = posts.Select(p => new PostDto
         {
             PostId = p.PostId,
@@ -57,7 +57,6 @@ public class HomeController : Controller
             IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
             IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
             IsOwnedByCurrentUser = p.UserId == currentUserId,
-            HomeFeed = true,
             LikeCount = p.Likes.Count,
             CommentCount = p.Comments.Count,
             Comments = p.Comments
@@ -76,7 +75,7 @@ public class HomeController : Controller
         }).ToList();
         
         // Simulate slow connection
-        await Task.Delay(5000);
+        //await Task.Delay(5000);
         
         return Ok(postDtos);
     }
