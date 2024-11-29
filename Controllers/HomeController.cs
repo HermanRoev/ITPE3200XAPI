@@ -31,10 +31,10 @@ public class HomeController : Controller
     [Route("/index")]
     public async Task<IActionResult> Index()
     {
-        // Retrieve all posts from the repository
-        var posts = await _postRepository.GetAllPostsAsync();
-        
-        if (posts == null)
+        // Retrieve all dynamic posts from the repository
+        var dynamicPosts = await _postRepository.GetAllPostsAsync();
+
+        if (dynamicPosts == null)
         {
             // Error in the repository, return an empty view
             return NotFound("No posts found");
