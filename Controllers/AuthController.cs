@@ -127,7 +127,7 @@ namespace ITPE3200XAPI.Controllers
         }
         
         // 4. Change Password 
-        [HttpPost("change-Password")]
+        [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto model)
         {
             if (!ModelState.IsValid)
@@ -142,7 +142,7 @@ namespace ITPE3200XAPI.Controllers
             }
 
             // Ensure new password and confirm new password match
-            if (model.NewPassword != model.ConfirmNewPassword)
+            if (model.NewPassword != model.Password)
             {
                 return BadRequest(new { message = "New password and confirmation password do not match." });
             }
@@ -157,7 +157,7 @@ namespace ITPE3200XAPI.Controllers
         }
         
         // 5. Change Email 
-        [HttpPost("change-Email")]
+        [HttpPost("change-email")]
         public async Task<IActionResult> ChangeEmail([FromBody] ChangeEmailDto model)
         {
             if (!ModelState.IsValid)
@@ -178,6 +178,15 @@ namespace ITPE3200XAPI.Controllers
             }
 
             return Ok(new { message = "Email changed successfully." });
+        }
+        
+        //6. Delete Personal Data 
+        [HttpPost("delete-personal-data")]
+        public async Task<IActionResult> DeletePersonalData([FromBody] DeletePersonalDataDto model)
+        {
+            //kode for metoden er ikke ferdig enda 
+            
+            return Ok(new { message = "Delete personal data successfully" });
         }
 
         // Helper: Generate JWT Token

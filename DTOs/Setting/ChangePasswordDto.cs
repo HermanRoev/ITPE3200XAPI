@@ -14,5 +14,5 @@ public class ChangePasswordDto
     
     [Required]
     [Compare("Password", ErrorMessage = "Passwords do not match.")]
-    public String ConfirmNewPassword { get; set; } 
+    public String Password { get; set; } 
 }

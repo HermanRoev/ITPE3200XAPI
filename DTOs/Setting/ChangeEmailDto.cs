@@ -1,8 +1,10 @@
-using Microsoft.Build.Framework;
+using System.ComponentModel.DataAnnotations;
 
 namespace ITPE3200XAPI.DTOs.Setting;
 
 public class ChangeEmailDto
 {
-    public String NewEmail { get; set; }
+    [Microsoft.Build.Framework.Required]
+    [EmailAddress(ErrorMessage = "The provided email address is not valid.")]
+    public string NewEmail { get; set; }
 }
