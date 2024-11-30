@@ -56,6 +56,7 @@ namespace ITPE3200XAPI.Controllers
                 {
                     if (!IsImageFile(imageFile))
                     {
+                        _logger.LogError("One or more files are not valid images.");
                         return BadRequest(new { message = "One or more files are not valid images." });
                     }
                     
@@ -98,12 +99,14 @@ namespace ITPE3200XAPI.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
 
@@ -210,18 +213,21 @@ namespace ITPE3200XAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(editCommentDto.Content))
             {
+                _logger.LogError("Comment content cannot be empty.");
                 return BadRequest(new { message = "Comment content cannot be empty." });
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(editCommentDto.PostId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", editCommentDto.PostId);
                 return NotFound(new { message = "Post not found." });
             }
             
@@ -244,12 +250,14 @@ namespace ITPE3200XAPI.Controllers
             Console.WriteLine("UserId: " + userId);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
             
@@ -270,12 +278,14 @@ namespace ITPE3200XAPI.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
             
@@ -295,6 +305,7 @@ namespace ITPE3200XAPI.Controllers
             return Ok(new { message = "Post deleted successfully." });
         }
         
+        // POST: api/Post/EditPost    
         [HttpPost("editpost")]
         [Authorize]
         public async Task<IActionResult> EditPost([FromForm] EditPostDto dto)
@@ -302,11 +313,14 @@ namespace ITPE3200XAPI.Controllers
             // Validate the DTO
             if (string.IsNullOrEmpty(dto.Content))
             {
+                _logger.LogError("[PostController][EditPost] Content is required.");
                 return BadRequest(new { message = "Content is required." });
             }
-            
-            if (dto.ImageFiles == null || !dto.ImageFiles.Any())
+
+            if ((dto.ImageFiles == null || !dto.ImageFiles.Any()) &&
+                (dto.ExistingImageUrls == null || !dto.ExistingImageUrls.Any()))
             {
+                _logger.LogError("[PostController][EditPost] At least one image is required.");
                 return BadRequest(new { message = "At least one image is required." });
             }
 
@@ -314,68 +328,100 @@ namespace ITPE3200XAPI.Controllers
 
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("[PostController][EditPost] User not found.");
                 return Unauthorized(new { message = "User not found." });
             }
+            
+            if(dto.PostId == null)
+            {
+                _logger.LogError("[PostController][EditPost] PostId is required.");
+                return BadRequest(new { message = "PostId is required." });
+            }
 
-            var postToUpdate = await _postRepository.GetPostByIdAsync(dto.PostId!);
+            var postToUpdate = await _postRepository.GetPostByIdAsync(dto.PostId);
             
             if (postToUpdate == null)
             {
+                _logger.LogError("[PostController][EditPost] Post not found: {PostId}", dto.PostId);
                 return NotFound(new { message = "Post not found." });
             }
 
             // Check ownership
             if (postToUpdate.UserId != userId)
             {
+                _logger.LogError("[PostController][EditPost] User does not own the post.");
                 return Forbid();
             }
 
             // Update the content
             postToUpdate.Content = dto.Content;
 
-            // Prepare lists to hold images to delete and add
+            // Prepare lists for images to delete and add
             var imagesToDelete = new List<PostImage>();
             var imagesToAdd = new List<PostImage>();
-            
-            // Delete existing images
-            foreach (var image in postToUpdate.Images.ToList())
+
+            // Identify images to delete (not included in ExistingImageUrls)
+            if (dto.ExistingImageUrls != null && dto.ExistingImageUrls.Any())
             {
-                DeleteImageFile(image.ImageUrl);
-                imagesToDelete.Add(image);
+                imagesToDelete = postToUpdate.Images
+                    .Where(image => !dto.ExistingImageUrls.Contains(image.ImageUrl))
+                    .ToList();
+            }
+            else
+            {
+                // If no ExistingImageUrls are provided, delete all current images
+                imagesToDelete = postToUpdate.Images.ToList();
             }
 
-            // Add new images
-            foreach (var imageFile in dto.ImageFiles)
+            // Remove files from the server for images marked for deletion
+            foreach (var image in imagesToDelete)
             {
-                if (imageFile.Length > 0)
+                DeleteImageFile(image.ImageUrl);
+                postToUpdate.Images.Remove(image);
+            }
+
+            if (dto.ImageFiles != null && dto.ImageFiles.Any())
+            {
+                // Add new images
+                foreach (var imageFile in dto.ImageFiles)
                 {
-                    // Validate the image file
-                    if (!IsImageFile(imageFile))
+                    if (imageFile.Length > 0)
                     {
-                        return BadRequest(new { message = "One or more files are not valid images." });
+                        // Validate the image file
+                        if (!IsImageFile(imageFile))
+                        {
+                            _logger.LogError("[PostController][EditPost] One or more files are not valid images.");
+                            return BadRequest(new { message = "One or more files are not valid images." });
+                        }
+    
+                        // Generate a unique file name
+                        var fileName = $"{Guid.NewGuid()}";
+                        var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
+                        var filePath = Path.Combine(uploads, fileName);
+    
+                        // Ensure the uploads directory exists
+                        if (!Directory.Exists(uploads))
+                        {
+                            Directory.CreateDirectory(uploads);
+                        }
+    
+                        // Save the image to the server
+                        using (var fileStream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await imageFile.CopyToAsync(fileStream);
+                        }
+    
+                        // Create PostImage entity and add to the list
+                        var imageEntity = new PostImage(postToUpdate.PostId, $"/uploads/{fileName}");
+                        imagesToAdd.Add(imageEntity);
                     }
-
-                    // Generate a unique file name
-                    var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(imageFile.FileName)}";
-                    var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
-                    var filePath = Path.Combine(uploads, fileName);
-
-                    // Ensure the uploads directory exists
-                    if (!Directory.Exists(uploads))
-                    {
-                        Directory.CreateDirectory(uploads);
-                    }
-
-                    // Save the image to the server
-                    using (var fileStream = new FileStream(filePath, FileMode.Create))
-                    {
-                        await imageFile.CopyToAsync(fileStream);
-                    }
-
-                    // Create PostImage entity and add to the list
-                    var imageEntity = new PostImage(postToUpdate.PostId, $"/uploads/{fileName}");
-                    imagesToAdd.Add(imageEntity);
                 }
+            }
+            
+            // Add new images to the post
+            foreach (var image in imagesToAdd)
+            {
+                postToUpdate.Images.Add(image);
             }
 
             // Save changes to the database
@@ -387,10 +433,7 @@ namespace ITPE3200XAPI.Controllers
                 return StatusCode(500, new { message = "An error occurred while updating the post." });
             }
 
-            // Optionally, fetch the updated post to return
-            var updatedPostDto = await GetPostDtoById(dto.PostId!);
-
-            return Ok(updatedPostDto);
+            return Ok(new {message = "Post updated successfully."});
         }
         
         // Deletes an image file from the file system

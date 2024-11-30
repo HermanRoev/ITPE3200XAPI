@@ -4,11 +4,9 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DTOs.Auth;
-using System;
-using System.Linq;
+
 
 namespace ITPE3200XAPI.Controllers
 {
@@ -135,7 +133,7 @@ namespace ITPE3200XAPI.Controllers
                 new Claim(ClaimTypes.Name, user.UserName) // Username
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
