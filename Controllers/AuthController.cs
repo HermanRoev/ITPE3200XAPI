@@ -184,9 +184,40 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("delete-personal-data")]
         public async Task<IActionResult> DeletePersonalData([FromBody] DeletePersonalDataDto model)
         {
-            //kode for metoden er ikke ferdig enda 
-            
-            return Ok(new { message = "Delete personal data successfully" });
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "User is not authorized." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found." });
+            }
+
+            // Verify the user's password before deletion
+            var isPasswordValid = await _userManager.CheckPasswordAsync(user, model.Password);
+            if (!isPasswordValid)
+            {
+                return BadRequest(new { message = "Incorrect password. Unable to delete account." });
+            }
+
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                return BadRequest(new 
+                { 
+                    message = "Failed to delete user.", 
+                    errors = result.Errors.Select(e => e.Description).ToList() 
+                });
+            }
+            return Ok(new { message = "Your personal data has been deleted successfully." });
         }
 
         // Helper: Generate JWT Token
