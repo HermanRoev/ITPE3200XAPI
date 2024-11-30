@@ -240,39 +240,80 @@ namespace ITPE3200XAPI.DAL.Repositories
         }
 
         // Like methods
-        public async Task AddLikeAsync(string postId, string userId)
+        public async Task<bool> AddLikeAsync(string postId, string userId)
         {
-            var like = new Like(postId, userId);
-            await _context.Likes.AddAsync(like);
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task RemoveLikeAsync(string postId, string userId)
-        {
-            var like = await _context.Likes
-                .FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userId);
-            if (like != null)
+            try
             {
-                _context.Likes.Remove(like);
+                var like = new Like(postId, userId);
+                await _context.Likes.AddAsync(like);
                 await _context.SaveChangesAsync();
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "An error occurred while adding a like.");
+                return false;
             }
         }
 
-        public async Task AddSavedPostAsync(String postId, string userId)
+        public async Task<bool> RemoveLikeAsync(string postId, string userId)
         {
-            var savedPost = new SavedPost(postId, userId);
-            await _context.SavedPosts.AddAsync(savedPost);
-            await _context.SaveChangesAsync();
+            try
+            {
+                var like = await _context.Likes
+                .FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userId);
+                if (like != null)
+                {
+                    _context.Likes.Remove(like);
+                    await _context.SaveChangesAsync();
+                }
+                
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "An error occurred while removing a like.");
+                return false;
+            }
+            
+        }
+
+        public async Task<bool> AddSavedPostAsync(String postId, string userId)
+        {
+            try
+            { 
+                var savedPost = new SavedPost(postId, userId);
+                await _context.SavedPosts.AddAsync(savedPost);
+                await _context.SaveChangesAsync();
+                
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "An error occurred while saving a post.");
+                return false;
+            }
         }
         
-        public async Task RemoveSavedPostAsync(String postId, string userId)
+        public async Task<bool> RemoveSavedPostAsync(String postId, string userId)
         {
-            var savedPost = await _context.SavedPosts
-                .FirstOrDefaultAsync(sp => sp.PostId == postId && sp.UserId == userId);
-            if (savedPost != null)
+            try
             {
-                _context.SavedPosts.Remove(savedPost);
-                await _context.SaveChangesAsync();
+                var savedPost = await _context.SavedPosts
+                .FirstOrDefaultAsync(sp => sp.PostId == postId && sp.UserId == userId);
+                if (savedPost != null)
+                {
+                    _context.SavedPosts.Remove(savedPost);
+                    await _context.SaveChangesAsync();
+                }
+                
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "An error occurred while removing a saved post.");
+                return false;
             }
         }
 

@@ -19,10 +19,10 @@ namespace ITPE3200XAPI.DAL.Repositories
         Task<bool> EditCommentAsync(string commentId, string userId, string content);
 
         // Like methods
-        Task AddLikeAsync(string postId, string userId);
-        Task RemoveLikeAsync(string postId, string userId);
+        Task<bool> AddLikeAsync(string postId, string userId);
+        Task<bool> RemoveLikeAsync(string postId, string userId);
         // Save methods
-        Task AddSavedPostAsync(String postId, string userId);
-        Task RemoveSavedPostAsync(String postId, string userId);
+        Task<bool> AddSavedPostAsync(String postId, string userId);
+        Task<bool> RemoveSavedPostAsync(String postId, string userId);
     }
 }
