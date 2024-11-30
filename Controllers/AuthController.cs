@@ -181,6 +181,7 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("change-email")]
         public async Task<IActionResult> ChangeEmail([FromBody] ChangeEmailDto model)
         {
+            // Check if input is empty
             if (string.IsNullOrWhiteSpace(model.NewEmail))
             {
                 _logger.LogError("Invalid model state");
