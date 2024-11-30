@@ -8,7 +8,7 @@ namespace ITPE3200XAPI.DAL.Repositories
         Task<Post?> GetPostByIdAsync(string postId);
         Task<IEnumerable<Post>?> GetSavedPostsByUserIdAsync(string userId);
         Task<IEnumerable<Post>?> GetAllPostsAsync();
-        Task<IEnumerable<Post>> GetPostsByUserAsync(string userId);
+        Task<IEnumerable<Post>?> GetPostsByUserAsync(string userId);
         Task<bool> AddPostAsync(Post post);
         Task<bool> UpdatePostAsync(Post post, List<PostImage> imagesToDelete, List<PostImage> imagesToAdd);
         Task<bool> DeletePostAsync(string postId, string userId);

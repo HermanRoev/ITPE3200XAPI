@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
@@ -35,29 +36,63 @@ public class ProfileController : ControllerBase
     [HttpGet("loggedin")]
     public async Task<IActionResult> GetLoggedInProfile()
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
         {
             return Unauthorized(new { message = "User not found" });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
-        var posts = await _postRepository.GetPostsByUserAsync(user.Id);
+        var user = _userManager.FindByIdAsync(userId).Result;
+        if (user == null)
+        {
+            return Unauthorized(new { message = "User not found" });
+        }
+        
+        var dynamicPosts = await _postRepository.GetPostsByUserAsync(user.Id);
 
-        var postDtos = posts.Select(p => new PostDto
+        if (dynamicPosts == null)
+        {
+            // Error in the repository, return an empty view
+            return NotFound("No posts found");
+        }
+
+        // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
+        dynamicPosts = dynamicPosts.ToList();
+
+        // Get the current user's ID (can be null if the user is not logged in)
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        // Construct the list of postDtos to pass to the frontend
+        var postDtos = dynamicPosts.Select(p => new PostDto
         {
             PostId = p.PostId,
             Content = p.Content,
-            ProfilePicture = user.ProfilePictureUrl,
-            UserName = user.UserName,
             ImageUrls = p.Images.Select(img => img.ImageUrl).ToList(),
+            UserName = p.User.UserName,
+            ProfilePicture = p.User.ProfilePictureUrl,
+            IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
+            IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
+            IsOwnedByCurrentUser = true,
             LikeCount = p.Likes.Count,
-            CommentCount = p.Comments.Count
+            CommentCount = p.Comments.Count,
+            Comments = p.Comments
+                .OrderBy(c => c.CreatedAt)
+                .Take(20) // Limit number of comments returned
+                .Select(c => new CommentDto
+                {
+                    CommentId = c.CommentId,
+                    UserName = c.User.UserName,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt,
+                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt),
+                    IsCreatedByCurrentUser = c.UserId == currentUserId
+                })
+                .ToList()
         }).ToList();
 
         var profileDto = new ProfileDto
         {
-            Username = user.UserName,
+            Username = user.UserName!,
             Bio = user.Bio,
             ProfilePictureUrl = user.ProfilePictureUrl ?? "/path/to/default-avatar.jpg",
             FollowersCount = await _userRepository.GetFollowerCountAsync(user.Id),  // Hent followers count
@@ -70,7 +105,37 @@ public class ProfileController : ControllerBase
             posts = postDtos
         });
     }
+    
+    // Calculates the time since a post or comment was created
+    private string CalculateTimeSincePosted(DateTime createdAt)
+    {
+        var currentTime = DateTime.UtcNow;
 
+        // Check if the createdAt timestamp is in the future
+        if (createdAt > currentTime)
+        {
+            // Log a warning if createdAt is in the future
+            _logger.LogWarning("[HomeController][CalculateTimeSincePosted] CreatedAt timestamp is in the future: {CreatedAt}", createdAt);
+            // Adjust createdAt to current time to prevent negative time spans
+            createdAt = currentTime;
+        }
+
+        var timeSpan = currentTime - createdAt;
+
+        // Determine the appropriate time format
+        if (timeSpan.TotalMinutes < 60)
+        {
+            return $"{(int)timeSpan.TotalMinutes} m ago";
+        }
+        else if (timeSpan.TotalHours < 24)
+        {
+            return $"{(int)timeSpan.TotalHours} h ago";
+        }
+        else
+        {
+            return $"{(int)timeSpan.TotalDays} d ago";
+        }
+    }
 
     // GET: Full Profile Data by Username
     [HttpGet("{username}")]
@@ -82,18 +147,49 @@ public class ProfileController : ControllerBase
             return NotFound(new { message = "User not found." });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
-        var posts = await _postRepository.GetPostsByUserAsync(user.Id);
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId == null)
+        {
+            return NotFound(new { message = "Not logged in" });
+        }
+        
+        var dynamicPosts = await _postRepository.GetPostsByUserAsync(user.Id);
 
-        var postDtos = posts.Select(p => new PostDto
+        if (dynamicPosts == null)
+        {
+            // Error in the repository, return an empty view
+            return NotFound("No posts found");
+        }
+
+        // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
+        dynamicPosts = dynamicPosts.ToList();
+
+        // Construct the list of postDtos to pass to the frontend
+        var postDtos = dynamicPosts.Select(p => new PostDto
         {
             PostId = p.PostId,
             Content = p.Content,
-            ProfilePicture = user.ProfilePictureUrl,
-            UserName = user.UserName,
             ImageUrls = p.Images.Select(img => img.ImageUrl).ToList(),
+            UserName = p.User.UserName,
+            ProfilePicture = p.User.ProfilePictureUrl,
+            IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
+            IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
+            IsOwnedByCurrentUser = p.UserId == currentUserId,
             LikeCount = p.Likes.Count,
-            CommentCount = p.Comments.Count
+            CommentCount = p.Comments.Count,
+            Comments = p.Comments
+                .OrderBy(c => c.CreatedAt)
+                .Take(20) // Limit number of comments returned
+                .Select(c => new CommentDto
+                {
+                    CommentId = c.CommentId,
+                    UserName = c.User.UserName,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt,
+                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt),
+                    IsCreatedByCurrentUser = c.UserId == currentUserId
+                })
+                .ToList()
         }).ToList();
 
         // Return FollowersCount and FollowingCount, default to 0 if new user
@@ -102,7 +198,7 @@ public class ProfileController : ControllerBase
         
         var profileDto = new ProfileDto
         {
-            Username = user.UserName,
+            Username = user.UserName!,
             Bio = user.Bio ?? string.Empty,
             ProfilePictureUrl = user.ProfilePictureUrl ?? "/path/to/default-avatar.jpg",
             FollowersCount = followersCount,  // Should be 0 for new users
@@ -114,7 +210,7 @@ public class ProfileController : ControllerBase
             profile = profileDto,
             posts = postDtos,
             isCurrentUserProfile = user.Id == currentUserId,
-            isFollowing = currentUserId != null && await _userRepository.IsFollowingAsync(currentUserId, user.Id)
+            isFollowing = await _userRepository.IsFollowingAsync(currentUserId, user.Id)
         });
     }
 
@@ -122,7 +218,15 @@ public class ProfileController : ControllerBase
     [HttpPost("edit")]
     public async Task<IActionResult> EditProfile(EditProfileDto editProfileDto)
     {
-        var user = await _userManager.GetUserAsync(User);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not found." });
+        }
+        
+        var user = await _userManager.FindByIdAsync(userId);
+        
         if (user == null)
         {
             return Unauthorized(new { message = "User not found." });
@@ -151,7 +255,7 @@ public class ProfileController : ControllerBase
             return NotFound(new { message = "User not found." });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(currentUserId))
         {
             return Unauthorized(new { message = "You are not logged in." });
@@ -176,7 +280,7 @@ public class ProfileController : ControllerBase
             return NotFound(new { message = "User not found." });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(currentUserId))
         {
             return Unauthorized(new { message = "You are not logged in." });
