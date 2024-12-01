@@ -36,24 +36,28 @@ public class ProfileController : ControllerBase
         _webHostEnvironment = webHostEnvironment;
     }
     
+    // GET: Basic Profile Data
     [HttpGet]
     [Route("basic")]
     public async Task<IActionResult> GetBasicProfile()
     {
+        // Get the current user's ID
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
         {
             _logger.LogError("Failed to find userId");
             return Unauthorized(new { message = "User not found." });
         }
-
+        
+        // Find the user by ID
         var user = await _userManager.FindByIdAsync(userId);
         if (user == null)
         {
             _logger.LogError("Failed to find user with ID '{UserId}'.", userId);
             return Unauthorized(new { message = "User not found." });
         }
-
+        
+        // Create a new SideMenuProfileDto object to pass to the frontend
         var profileDto = new SideMenuProfileDto
         {
             Username = user.UserName,
@@ -70,17 +74,18 @@ public class ProfileController : ControllerBase
     [HttpGet("{username?}")]
     public async Task<IActionResult> GetProfile(string? username)
     {
+        // Get the current user's ID
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        
         if (string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(currentUserId))
         {
+            // If no username is provided, get the profile of the current user
             var checkUser = await _userManager.FindByIdAsync(currentUserId);
             if (checkUser == null)
             {
                 _logger.LogError("Failed to find user with ID '{UserId}'.", currentUserId);
                 return NotFound(new { message = "User not found." });
             }
-            
+            // Get the username of the current user
             username = checkUser.UserName;
         }
         
@@ -90,26 +95,24 @@ public class ProfileController : ControllerBase
             return NotFound(new { message = "User not found." });
         }
         
+        // Find the user by username
         var user = await _userManager.FindByNameAsync(username);
-        
         if (user == null)
         {
             _logger.LogError("Failed to find user with username '{Username}'.", username);
             return NotFound(new { message = "User not found." });
         }
         
+        // Get all posts by the user
         var dynamicPosts = await _postRepository.GetPostsByUserAsync(user.Id);
-
         if (dynamicPosts == null)
         {
             _logger.LogError("Failed to find posts for user with ID '{UserId}'.", user.Id);
             return NotFound("No posts found");
         }
 
-        // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
-        dynamicPosts = dynamicPosts.ToList();
-
         // Construct the list of postDtos to pass to the frontend
+        dynamicPosts = dynamicPosts.ToList();
         var postDtos = dynamicPosts.Select(p => new PostDto
         {
             PostId = p.PostId,
@@ -141,6 +144,7 @@ public class ProfileController : ControllerBase
         var followersCount = await _userRepository.GetFollowerCountAsync(user.Id);
         var followingCount = await _userRepository.GetFollowingCountAsync(user.Id);
         
+        // Create a new ProfileDto object to pass to the frontend
         var profileDto = new ProfileDto
         {
             Username = user.UserName!,
@@ -162,9 +166,8 @@ public class ProfileController : ControllerBase
     // Calculates the time since a post or comment was created
     private string CalculateTimeSincePosted(DateTime createdAt)
     {
-        var currentTime = DateTime.UtcNow;
-
         // Check if the createdAt timestamp is in the future
+        var currentTime = DateTime.UtcNow;
         if (createdAt > currentTime)
         {
             // Log a warning if createdAt is in the future
@@ -172,10 +175,9 @@ public class ProfileController : ControllerBase
             // Adjust createdAt to current time to prevent negative time spans
             createdAt = currentTime;
         }
-
-        var timeSpan = currentTime - createdAt;
-
+        
         // Determine the appropriate time format
+        var timeSpan = currentTime - createdAt;
         if (timeSpan.TotalMinutes < 60)
         {
             return $"{(int)timeSpan.TotalMinutes} m ago";
@@ -194,16 +196,16 @@ public class ProfileController : ControllerBase
     [HttpPost("edit")]
     public async Task<IActionResult> EditProfile(EditProfileDto editProfileDto)
     {
+        // Get the current user's ID
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
         if (userId == null)
         {
             _logger.LogError("Failed to find userId");
             return Unauthorized(new { message = "User not found." });
         }
         
+        // Find the user by ID
         var user = await _userManager.FindByIdAsync(userId);
-        
         if (user == null)
         {
             _logger.LogError("Failed to find user with ID '{UserId}'.", userId);
@@ -211,7 +213,6 @@ public class ProfileController : ControllerBase
         }
         
         user.Bio = editProfileDto.Bio;
-        
         var oldProfilePictureUrl = user.ProfilePictureUrl;
         if (editProfileDto.ProfilePicture != null)
         {
@@ -296,21 +297,27 @@ public class ProfileController : ControllerBase
     [HttpPost("follow")]
     public async Task<IActionResult> Follow([FromBody] string username)
     {
+        // Find the user to follow by username
         var userToFollow = await _userManager.FindByNameAsync(username);
         if (userToFollow == null)
         {
+            _logger.LogError("Failed to find user with username '{Username}'.", username);
             return NotFound(new { message = "User not found." });
         }
-
+        
+        // Get the current user's ID
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(currentUserId))
         {
+            _logger.LogError("Failed to find userId");
             return Unauthorized(new { message = "You are not logged in." });
         }
-
+        
+        // Add the user to follow to the current user's followers
         var result = await _userRepository.AddFollowerAsync(currentUserId, userToFollow.Id);
         if (!result)
         {
+            _logger.LogError("Failed to add follower for user '{UserId}'.", currentUserId);
             return StatusCode(500, new { message = "Could not follow user." });
         }
 
@@ -321,24 +328,30 @@ public class ProfileController : ControllerBase
     [HttpPost("unfollow")]
     public async Task<IActionResult> Unfollow([FromBody] string username)
     {
+        // Find the user to unfollow by username
         var userToUnfollow = await _userManager.FindByNameAsync(username);
         if (userToUnfollow == null)
         {
+            _logger.LogError("Failed to find user with username '{Username}'.", username);
             return NotFound(new { message = "User not found." });
         }
-
+        
+        // Get the current user's ID
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(currentUserId))
         {
+            _logger.LogError("Failed to find userId");
             return Unauthorized(new { message = "You are not logged in." });
         }
-
+        
+        // Remove the user to unfollow from the current user's followers
         var result = await _userRepository.RemoveFollowerAsync(currentUserId, userToUnfollow.Id);
         if (!result)
         {
+            _logger.LogError("Failed to remove follower for user '{UserId}'.", currentUserId);
             return StatusCode(500, new { message = "Could not unfollow user." });
         }
-
+        
         return Ok(new { message = "User unfollowed successfully." });
     }
 }
