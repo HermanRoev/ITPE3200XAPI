@@ -19,18 +19,21 @@ public class ProfileController : ControllerBase
     private readonly IUserRepository _userRepository;
     private readonly IPostRepository _postRepository;
     private readonly ILogger<ProfileController> _logger;
+    private readonly IWebHostEnvironment _webHostEnvironment;
 
     public ProfileController(
         UserManager<ApplicationUser> userManager,
         IUserRepository userRepository,
         IPostRepository postRepository,
-        ILogger<ProfileController> logger
+        ILogger<ProfileController> logger,
+        IWebHostEnvironment webHostEnvironment
     )
     {
         _userManager = userManager;
         _userRepository = userRepository;
         _postRepository = postRepository;
         _logger = logger;
+        _webHostEnvironment = webHostEnvironment;
     }
     
     // GET: Basic Profile Data
@@ -65,6 +68,7 @@ public class ProfileController : ControllerBase
     }
 
     // GET: Full Profile Data by Username
+    [AllowAnonymous]
     [HttpGet("{username?}")]
     public async Task<IActionResult> GetProfile(string? username)
     {
@@ -206,11 +210,49 @@ public class ProfileController : ControllerBase
             _logger.LogError("Failed to find user with ID '{UserId}'.", userId);
             return Unauthorized(new { message = "User not found." });
         }
-
-        user.Bio = editProfileDto.Bio;
-        user.ProfilePictureUrl = editProfileDto.ProfilePictureUrl;
         
-        // Update the user profile
+        user.Bio = editProfileDto.Bio;
+        
+        var oldProfilePictureUrl = user.ProfilePictureUrl;
+        if (editProfileDto.ProfilePicture != null)
+        {
+            // Delete old profile picture if it exists and a new one is uploaded
+            if (!string.IsNullOrEmpty(oldProfilePictureUrl))
+            {
+                DeleteImageFile(oldProfilePictureUrl);
+            }
+            
+            // Validate the image file
+            if (!IsImageFile(editProfileDto.ProfilePicture))
+            {
+                _logger.LogError("[PostController][EditPost] One or more files are not valid images.");
+                return BadRequest(new { message = "One or more files are not valid images." });
+            }
+    
+            // Extract the file extension and ensure it's in lowercase
+            var extension = Path.GetExtension(editProfileDto.ProfilePicture.FileName).ToLowerInvariant();
+
+            // Generate a unique filename with the extension
+            var fileName = $"{Guid.NewGuid()}{extension}";
+            var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
+            var filePath = Path.Combine(uploads, fileName);
+    
+            // Ensure the uploads directory exists
+            if (!Directory.Exists(uploads))
+            {
+                Directory.CreateDirectory(uploads);
+            }
+    
+            // Save the image to the server
+            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                await editProfileDto.ProfilePicture.CopyToAsync(fileStream);
+            }
+            
+            // Update the profile picture URL
+            user.ProfilePictureUrl = $"/uploads/{fileName}";
+        }
+
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
@@ -219,6 +261,36 @@ public class ProfileController : ControllerBase
         }
 
         return Ok(new { message = "Profile updated successfully." });
+    }
+    
+    // Helper Methods
+    private bool IsImageFile(IFormFile file)
+    {
+        var permittedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        return !string.IsNullOrEmpty(extension) && permittedExtensions.Contains(extension);
+    }
+    
+    // Deletes an image file from the file system
+    private void DeleteImageFile(string imageUrl)
+    {
+        try
+        {
+            // Convert the image URL to a file path
+            var wwwRootPath = _webHostEnvironment.WebRootPath;
+            var filePath = Path.Combine(wwwRootPath, imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            if (System.IO.File.Exists(filePath))
+            {
+                System.IO.File.Delete(filePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log the exception
+            _logger.LogError(ex, "[PostController][DeleteImageFile] Error deleting image file: {ImageUrl}", imageUrl);
+        }
     }
 
     // POST: Follow a User

@@ -65,7 +65,11 @@ namespace ITPE3200XAPI.Controllers
                         return BadRequest(new { message = "One or more files are not valid images." });
                     }
                     
-                    var fileName = $"{Guid.NewGuid()}";
+                    // Extract the file extension and ensure it's in lowercase
+                    var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+
+                    // Generate a unique filename with the extension
+                    var fileName = $"{Guid.NewGuid()}{extension}";
                     var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
                     var filePath = Path.Combine(uploads, fileName);
 
@@ -96,6 +100,65 @@ namespace ITPE3200XAPI.Controllers
 
             var postDto = await GetPostDtoById(post.PostId);
             return CreatedAtAction(nameof(GetPostById), new { postId = post.PostId }, postDto);
+        }
+        
+        [HttpGet("/GetSavedPosts")]
+        public async Task<IActionResult> GetSavedPosts()
+        {
+            
+            // Get the current user's ID (can be null if the user is not logged in)
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                _logger.LogError("User not found.");
+                return Unauthorized(new { message = "User not found." });
+            }
+            
+            // Retrieve all dynamic posts from the repository
+            var dynamicPosts = await _postRepository.GetSavedPostsByUserIdAsync(currentUserId);
+
+            if (dynamicPosts == null)
+            {
+                // Error in the repository, return an empty view
+                _logger.LogError("No posts found");
+                return NotFound("No posts found");
+            }
+
+            // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
+            dynamicPosts = dynamicPosts.ToList();
+
+            // Construct the list of postDtos to pass to the frontend
+            var postDtos = dynamicPosts.Select(p => new PostDto
+            {
+                PostId = p.PostId,
+                Content = p.Content,
+                ImageUrls = p.Images.Select(img => img.ImageUrl).ToList(),
+                UserName = p.User.UserName,
+                ProfilePicture = p.User.ProfilePictureUrl,
+                IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
+                IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
+                IsOwnedByCurrentUser = p.UserId == currentUserId,
+                LikeCount = p.Likes.Count,
+                CommentCount = p.Comments.Count,
+                Comments = p.Comments
+                    .OrderBy(c => c.CreatedAt)
+                    .Take(20) // Limit number of comments returned
+                    .Select(c => new CommentDto
+                    {
+                        CommentId = c.CommentId,
+                        UserName = c.User.UserName,
+                        Content = c.Content,
+                        CreatedAt = c.CreatedAt,
+                        TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt),
+                        IsCreatedByCurrentUser = c.UserId == currentUserId
+                    })
+                    .ToList()
+            }).ToList();
+            
+            // Simulate slow connection
+            //await Task.Delay(5000);
+            
+            return Ok(postDtos);
         }
 
         // POST: api/Post/ToggleLike/{postId}
@@ -153,7 +216,7 @@ namespace ITPE3200XAPI.Controllers
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("User not found.");
-                return Unauthorized();
+                return Unauthorized( new { message = "User not found." });
             }
             
             // Get the post by ID
@@ -206,14 +269,13 @@ namespace ITPE3200XAPI.Controllers
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("User not found.");
-                return Unauthorized();
+                return Unauthorized( new { message = "User not found." });
             }
             
             // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(addCommentDto.PostId);
             if (post == null)
             {
-                _logger.LogError("Post not found: {PostId}", addCommentDto.PostId);
                 return NotFound(new { message = "Post not found." });
             }
 
@@ -269,7 +331,6 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
-        [AllowAnonymous]
         [HttpPost("DeleteComment")]
         public async Task<IActionResult> DeleteComment([FromQuery] string postId, [FromQuery] string commentId)
         {
@@ -340,7 +401,6 @@ namespace ITPE3200XAPI.Controllers
         
         // POST: api/Post/EditPost    
         [HttpPost("editpost")]
-        [Authorize]
         public async Task<IActionResult> EditPost([FromForm] EditPostDto dto)
         {
             // Validate the DTO
@@ -360,6 +420,7 @@ namespace ITPE3200XAPI.Controllers
 
             // Check if the user is found
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("[PostController][EditPost] User not found.");
@@ -392,7 +453,7 @@ namespace ITPE3200XAPI.Controllers
             postToUpdate.Content = dto.Content;
 
             // Prepare lists for images to delete and add
-            var imagesToDelete = new List<PostImage>();
+            List<PostImage> imagesToDelete;
             var imagesToAdd = new List<PostImage>();
 
             // Identify images to delete (not included in ExistingImageUrls)
@@ -429,8 +490,11 @@ namespace ITPE3200XAPI.Controllers
                             return BadRequest(new { message = "One or more files are not valid images." });
                         }
     
-                        // Generate a unique file name
-                        var fileName = $"{Guid.NewGuid()}";
+                        // Extract the file extension and ensure it's in lowercase
+                        var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+
+                        // Generate a unique filename with the extension
+                        var fileName = $"{Guid.NewGuid()}{extension}";
                         var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
                         var filePath = Path.Combine(uploads, fileName);
     
