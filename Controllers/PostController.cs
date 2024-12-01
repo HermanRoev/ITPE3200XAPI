@@ -60,7 +60,11 @@ namespace ITPE3200XAPI.Controllers
                         return BadRequest(new { message = "One or more files are not valid images." });
                     }
                     
-                    var fileName = $"{Guid.NewGuid()}";
+                    // Extract the file extension and ensure it's in lowercase
+                    var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+
+                    // Generate a unique filename with the extension
+                    var fileName = $"{Guid.NewGuid()}{extension}";
                     var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
                     var filePath = Path.Combine(uploads, fileName);
 
@@ -357,7 +361,7 @@ namespace ITPE3200XAPI.Controllers
             postToUpdate.Content = dto.Content;
 
             // Prepare lists for images to delete and add
-            var imagesToDelete = new List<PostImage>();
+            List<PostImage> imagesToDelete;
             var imagesToAdd = new List<PostImage>();
 
             // Identify images to delete (not included in ExistingImageUrls)
@@ -394,8 +398,11 @@ namespace ITPE3200XAPI.Controllers
                             return BadRequest(new { message = "One or more files are not valid images." });
                         }
     
-                        // Generate a unique file name
-                        var fileName = $"{Guid.NewGuid()}";
+                        // Extract the file extension and ensure it's in lowercase
+                        var extension = Path.GetExtension(imageFile.FileName).ToLowerInvariant();
+
+                        // Generate a unique filename with the extension
+                        var fileName = $"{Guid.NewGuid()}{extension}";
                         var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
                         var filePath = Path.Combine(uploads, fileName);
     
@@ -471,7 +478,6 @@ namespace ITPE3200XAPI.Controllers
         }
 
         // Helper Methods
-
         private bool IsImageFile(IFormFile file)
         {
             var permittedExtensions = new[] { ".jpg", ".jpeg", ".png" };
