@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DTOs.Auth;
+using ITPE3200XAPI.DTOs.Setting;
 
 namespace ITPE3200XAPI.Controllers
 {

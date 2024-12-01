@@ -53,8 +53,9 @@ public class ProfileController : ControllerBase
 
         var profileDto = new SideMenuProfileDto
         {
-            Username = user.UserName!,
+            Username = user.UserName,
             ProfilePictureUrl = user.ProfilePictureUrl,
+            Email = user.Email,
         };
 
         return Ok(profileDto);
@@ -68,7 +69,7 @@ public class ProfileController : ControllerBase
         
         if (string.IsNullOrEmpty(username))
         {
-            var checkUser = await _userManager.FindByIdAsync(currentUserId!);
+            var checkUser = await _userManager.FindByIdAsync(currentUserId);
             if (checkUser == null)
             {
                 _logger.LogError("Failed to find user with ID '{UserId}'.", currentUserId);
@@ -264,5 +265,3 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "User unfollowed successfully." });
     }
 }
-
-
