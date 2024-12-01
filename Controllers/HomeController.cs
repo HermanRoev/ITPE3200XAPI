@@ -33,10 +33,10 @@ public class HomeController : Controller
     {
         // Retrieve all dynamic posts from the repository
         var dynamicPosts = await _postRepository.GetAllPostsAsync();
-
         if (dynamicPosts == null)
         {
             // Error in the repository, return an empty view
+            _logger.LogError("No posts found in the repository");
             return NotFound("No posts found");
         }
 
@@ -83,9 +83,8 @@ public class HomeController : Controller
     // Calculates the time since a post or comment was created
     private string CalculateTimeSincePosted(DateTime createdAt)
     {
-        var currentTime = DateTime.UtcNow;
-
         // Check if the createdAt timestamp is in the future
+        var currentTime = DateTime.UtcNow;
         if (createdAt > currentTime)
         {
             // Log a warning if createdAt is in the future
@@ -93,10 +92,9 @@ public class HomeController : Controller
             // Adjust createdAt to current time to prevent negative time spans
             createdAt = currentTime;
         }
-
-        var timeSpan = currentTime - createdAt;
-
+        
         // Determine the appropriate time format
+        var timeSpan = currentTime - createdAt;
         if (timeSpan.TotalMinutes < 60)
         {
             return $"{(int)timeSpan.TotalMinutes} m ago";

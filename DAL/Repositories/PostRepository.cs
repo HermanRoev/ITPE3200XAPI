@@ -40,7 +40,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while retrieving a post by ID.");
                 return null;
             }
-
         }
         
         // SavedPost methods
@@ -72,8 +71,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return null;
             }
         }
-
-
+        
+        // Returns all posts in the database
         public async Task<IEnumerable<Post>?> GetAllPostsAsync()
         {
             try
@@ -94,9 +93,9 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while retrieving all posts.");
                 return null;
             }
-            
         }
-
+        
+        // Add a post to the database
         public async Task<bool> AddPostAsync(Post post)
         {
             try
@@ -110,9 +109,9 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while adding a post.");
                 return false;
             }
-            
         }
-
+        
+        // Update a post in the database
         public async Task<bool> UpdatePostAsync(Post post, List<PostImage> imagesToDelete, List<PostImage> imagesToAdd)
         {
             try
@@ -142,9 +141,9 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while updating a post.");
                 return false;
             }
-
         }
-
+        
+        // Delete a post from the database
         public async Task<bool> DeletePostAsync(string postId, string userId)
         {
             try
@@ -182,7 +181,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return false;
             }
         }
-
+        
+        // Delete a comment from the database
         public async Task<bool> DeleteCommentAsync(string commentId, string userId)
         {
             try
@@ -208,9 +208,9 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while deleting a comment.");
                 return false;
             }
-
         }
         
+        // Edit a comment in the database
         public async Task<bool> EditCommentAsync(string commentId, string userId, string content)
         {
             try
@@ -256,7 +256,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return false;
             }
         }
-
+        
+        // Remove a like from the database
         public async Task<bool> RemoveLikeAsync(string postId, string userId)
         {
             try
@@ -276,9 +277,9 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while removing a like.");
                 return false;
             }
-            
         }
-
+        
+        // Save post methods
         public async Task<bool> AddSavedPostAsync(String postId, string userId)
         {
             try
@@ -296,6 +297,7 @@ namespace ITPE3200XAPI.DAL.Repositories
             }
         }
         
+        //Removed saved post method
         public async Task<bool> RemoveSavedPostAsync(String postId, string userId)
         {
             try
@@ -316,7 +318,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return false;
             }
         }
-
+        
+        // Get posts by user
         public async Task<IEnumerable<Post>?> GetPostsByUserAsync(string userId)
         {
             try
