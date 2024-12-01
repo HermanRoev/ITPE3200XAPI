@@ -14,19 +14,21 @@ namespace ITPE3200XAPI.DAL.Repositories
             _logger = logger;
         }
         
+        // Follower count (how many followers a user has)
         public async Task<int> GetFollowerCountAsync(string userId)
         {
             return await _context.Followers
                 .CountAsync(f => f.FollowedUserId == userId);
         }
-
+        
+        // Following count (how many users a user is following)
         public async Task<int> GetFollowingCountAsync(string userId)
         {
             return await _context.Followers
                 .CountAsync(f => f.FollowerUserId == userId);
         }
 
-
+        // Add follower (follow)
         public async Task<bool> AddFollowerAsync(string followerUserId, string followedUserId)
         {
             try
@@ -43,7 +45,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return false;
             }
         }
-
+        
+        // Remove follower (unfollow)
         public async Task<bool> RemoveFollowerAsync(string followerUserId, string followedUserId)
         {
             try
@@ -66,7 +69,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return false;
             }
         }
-
+        
+        // Check if a user is following another user 
         public async Task<bool> IsFollowingAsync(string? followerUserId, string followedUserId)
         {
             try

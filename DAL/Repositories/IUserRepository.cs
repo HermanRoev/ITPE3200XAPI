@@ -7,8 +7,8 @@ namespace ITPE3200XAPI.DAL.Repositories
         Task<bool> AddFollowerAsync(string followerUserId, string followedUserId);
         Task<bool> RemoveFollowerAsync(string followerUserId, string followedUserId);
         Task<bool> IsFollowingAsync(string? followerUserId, string followedUserId);
-        Task<int> GetFollowerCountAsync(string userId);
-        Task<int> GetFollowingCountAsync(string userId);
+        Task<int> GetFollowerCountAsync(string userId); // How many followers a user has
+        Task<int> GetFollowingCountAsync(string userId); // How many users a user is following
 
     }
 }
