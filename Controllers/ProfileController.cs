@@ -1,114 +1,159 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DAL.Repositories;
 using ITPE3200XAPI.DTOs.Auth;
+using ITPE3200XAPI.DTOs.Profile;
+using ITPE3200XAPI.DTOs.Post;
 using Microsoft.AspNetCore.Identity;
-using ITPE3200XAPI.ViewModels;
 
 namespace ITPE3200XAPI.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("[controller]")]
-public class ProfileController : Controller
+public class ProfileController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IUserRepository _userRepository;
     private readonly IPostRepository _postRepository;
-    private readonly IWebHostEnvironment _webHostEnvironment;
     private readonly ILogger<ProfileController> _logger;
+    private readonly IWebHostEnvironment _webHostEnvironment;
 
-    // Constructor injecting dependencies
     public ProfileController(
         UserManager<ApplicationUser> userManager,
         IUserRepository userRepository,
         IPostRepository postRepository,
-        IWebHostEnvironment webHostEnvironment,
-        ILogger<ProfileController> logger
+        ILogger<ProfileController> logger,
+        IWebHostEnvironment webHostEnvironment
     )
     {
         _userManager = userManager;
         _userRepository = userRepository;
         _postRepository = postRepository;
-        _webHostEnvironment = webHostEnvironment;
         _logger = logger;
+        _webHostEnvironment = webHostEnvironment;
     }
-
-    // GET: Profile
-    [AllowAnonymous]
+    
     [HttpGet]
-    [Route("/profile/{username?}")]
-    public async Task<IActionResult> Profile(string? username)
+    [Route("basic")]
+    public async Task<IActionResult> GetBasicProfile()
     {
-        if (string.IsNullOrEmpty(username))
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
         {
-            // If username is not provided, get the current user's username to show their profile
-            username = _userManager.GetUserName(User);
-            if (string.IsNullOrEmpty(username))
-            {
-                // There is no profile to show
-                return NotFound("User not found");
-            }
+            _logger.LogError("Failed to find userId");
+            return Unauthorized(new { message = "User not found." });
         }
 
-        // Retrieve the user by username
-        var user = await _userManager.FindByNameAsync(username);
+        var user = await _userManager.FindByIdAsync(userId);
         if (user == null)
         {
-            _logger.LogWarning("[ProfileController][Profile] User '{Username}' not found.", username);
-            return NotFound("User not found");
+            _logger.LogError("Failed to find user with ID '{UserId}'.", userId);
+            return Unauthorized(new { message = "User not found." });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
+        var profileDto = new SideMenuProfileDto
+        {
+            Username = user.UserName!,
+            ProfilePictureUrl = user.ProfilePictureUrl,
+        };
 
-        // Retrieve posts by the user
-        var posts = await _postRepository.GetPostsByUserAsync(user.Id);
+        return Ok(profileDto);
+    }
 
-        // Construct the list of PostViewModels
-        var postViewModels = posts.Select(p => new PostViewModel
+    // GET: Full Profile Data by Username
+    [AllowAnonymous]
+    [HttpGet("{username?}")]
+    public async Task<IActionResult> GetProfile(string? username)
+    {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        
+        if (string.IsNullOrEmpty(username))
+        {
+            var checkUser = await _userManager.FindByIdAsync(currentUserId!);
+            if (checkUser == null)
+            {
+                _logger.LogError("Failed to find user with ID '{UserId}'.", currentUserId);
+                return NotFound(new { message = "User not found." });
+            }
+            
+            username = checkUser.UserName;
+            if (username == null)
+            {
+                _logger.LogError("Failed to find username for user with ID '{UserId}'.", currentUserId);
+                return NotFound(new { message = "User not found." });
+            }
+        }
+        
+        var user = await _userManager.FindByNameAsync(username);
+        
+        if (user == null)
+        {
+            _logger.LogError("Failed to find user with username '{Username}'.", username);
+            return NotFound(new { message = "User not found." });
+        }
+        
+        var dynamicPosts = await _postRepository.GetPostsByUserAsync(user.Id);
+
+        if (dynamicPosts == null)
+        {
+            _logger.LogError("Failed to find posts for user with ID '{UserId}'.", user.Id);
+            return NotFound("No posts found");
+        }
+
+        // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
+        dynamicPosts = dynamicPosts.ToList();
+
+        // Construct the list of postDtos to pass to the frontend
+        var postDtos = dynamicPosts.Select(p => new PostDto
         {
             PostId = p.PostId,
             Content = p.Content,
-            Images = p.Images.ToList(),
+            ImageUrls = p.Images.Select(img => img.ImageUrl).ToList(),
             UserName = p.User.UserName,
             ProfilePicture = p.User.ProfilePictureUrl,
             IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
             IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
             IsOwnedByCurrentUser = p.UserId == currentUserId,
-            HomeFeed = false,
             LikeCount = p.Likes.Count,
             CommentCount = p.Comments.Count,
             Comments = p.Comments
                 .OrderBy(c => c.CreatedAt)
-                .Select(c => new CommentViewModel
+                .Take(20) // Limit number of comments returned
+                .Select(c => new CommentDto
                 {
-                    IsCreatedByCurrentUser = c.UserId == currentUserId,
                     CommentId = c.CommentId,
                     UserName = c.User.UserName,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
-                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt)
+                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt),
+                    IsCreatedByCurrentUser = c.UserId == currentUserId
                 })
                 .ToList()
         }).ToList();
 
-        // Determine if the current user is following the profile user
-        var isFollowing = false;
-        if (User.Identity!.IsAuthenticated && currentUserId != user.Id)
+        // Return FollowersCount and FollowingCount, default to 0 if new user
+        var followersCount = await _userRepository.GetFollowerCountAsync(user.Id);
+        var followingCount = await _userRepository.GetFollowingCountAsync(user.Id);
+        
+        var profileDto = new ProfileDto
         {
-            isFollowing = await _userRepository.IsFollowingAsync(currentUserId!, user.Id);
-        }
-
-        // Prepare the ProfileViewModel
-        var profile = new ProfileViewModel
-        {
-            User = user,
-            Posts = postViewModels,
+            Username = user.UserName!,
+            Bio = user.Bio ?? string.Empty,
+            ProfilePictureUrl = user.ProfilePictureUrl,
+            FollowersCount = followersCount,  // Should be 0 for new users
+            FollowingCount = followingCount,  // Should be 0 for new users
             IsCurrentUserProfile = user.Id == currentUserId,
-            IsFollowing = isFollowing
+            IsFollowing = await _userRepository.IsFollowingAsync(currentUserId, user.Id)
         };
 
-        return View(profile);
+        return Ok(new
+        {
+            profile = profileDto,
+            posts = postDtos,
+        });
     }
 
     // Calculates the time since a post or comment was created
@@ -119,7 +164,9 @@ public class ProfileController : Controller
         // Check if the createdAt timestamp is in the future
         if (createdAt > currentTime)
         {
-            _logger.LogWarning("[ProfileController][CalculateTimeSincePosted] CreatedAt timestamp is in the future: {CreatedAt}", createdAt);
+            // Log a warning if createdAt is in the future
+            _logger.LogWarning("[HomeController][CalculateTimeSincePosted] CreatedAt timestamp is in the future: {CreatedAt}", createdAt);
+            // Adjust createdAt to current time to prevent negative time spans
             createdAt = currentTime;
         }
 
@@ -139,103 +186,96 @@ public class ProfileController : Controller
             return $"{(int)timeSpan.TotalDays} d ago";
         }
     }
-
-    // GET: EditProfile
-    [HttpGet]
-    [Route("/profile/edit")]
-    public async Task<IActionResult> Edit()
+    
+    // POST: Edit Profile
+    [HttpPost("edit")]
+    public async Task<IActionResult> EditProfile(EditProfileDto editProfileDto)
     {
-        var user = await _userManager.GetUserAsync(User);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (userId == null)
+        {
+            _logger.LogError("Failed to find userId");
+            return Unauthorized(new { message = "User not found." });
+        }
+        
+        var user = await _userManager.FindByIdAsync(userId);
+        
         if (user == null)
         {
-            return Unauthorized();
+            _logger.LogError("Failed to find user with ID '{UserId}'.", userId);
+            return Unauthorized(new { message = "User not found." });
         }
-
-        var model = new EditProfileViewModel
+        
+        user.Bio = editProfileDto.Bio;
+        
+        var oldProfilePictureUrl = user.ProfilePictureUrl;
+        if (editProfileDto.ProfilePicture != null)
         {
-            Bio = user.Bio,
-            ProfilePictureUrl = user.ProfilePictureUrl
-        };
-
-        return View(model);
-    }
-
-    // POST: EditProfile
-    [HttpPost]
-    [Route("/profile/edit")]
-    public async Task<IActionResult> Edit(EditProfileViewModel model)
-    {
-        if (!ModelState.IsValid)
-        {
-            ModelState.AddModelError("", "Invalid model.");
-            return View(model);
-        }
-
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-        {
-            return Unauthorized();
-        }
-
-        // Handle Profile Picture Upload
-        if (model.ImageFile != null)
-        {
-            // Validate the image file
-            if (!IsImageFile(model.ImageFile))
+            // Delete old profile picture if it exists and a new one is uploaded
+            if (!string.IsNullOrEmpty(oldProfilePictureUrl))
             {
-                ModelState.AddModelError("ImageFile", "The file is not a valid image.");
-                return View(model);
+                DeleteImageFile(oldProfilePictureUrl);
             }
+            
+            // Validate the image file
+            if (!IsImageFile(editProfileDto.ProfilePicture))
+            {
+                _logger.LogError("[PostController][EditPost] One or more files are not valid images.");
+                return BadRequest(new { message = "One or more files are not valid images." });
+            }
+    
+            // Extract the file extension and ensure it's in lowercase
+            var extension = Path.GetExtension(editProfileDto.ProfilePicture.FileName).ToLowerInvariant();
 
-            // Generate a unique file name
-            var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(model.ImageFile.FileName)}";
-            var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "profile_pictures");
+            // Generate a unique filename with the extension
+            var fileName = $"{Guid.NewGuid()}{extension}";
+            var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
             var filePath = Path.Combine(uploads, fileName);
-
+    
             // Ensure the uploads directory exists
             if (!Directory.Exists(uploads))
             {
                 Directory.CreateDirectory(uploads);
             }
-
+    
             // Save the image to the server
-            await using (var fileStream = new FileStream(filePath, FileMode.Create))
+            using (var fileStream = new FileStream(filePath, FileMode.Create))
             {
-                await model.ImageFile.CopyToAsync(fileStream);
+                await editProfileDto.ProfilePicture.CopyToAsync(fileStream);
             }
-
-            // Delete the old profile picture if it exists and is not the default
-            if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
-            {
-                DeleteImageFile(user.ProfilePictureUrl);
-            }
-
-            // Update the user's ProfilePictureUrl
-            user.ProfilePictureUrl = $"/uploads/profile_pictures/{fileName}";
+            
+            // Update the profile picture URL
+            user.ProfilePictureUrl = $"/uploads/{fileName}";
         }
-
-        // Update other user properties
-        user.Bio = model.Bio;
 
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
-            _logger.LogError("[ProfileController][Edit POST] Failed to update user profile for '{UserId}'.", user.Id);
-            ModelState.AddModelError("", "Could not update profile.");
-            return View(model);
+            _logger.LogError("Failed to update user profile for user '{UserId}'.", user.Id);
+            return StatusCode(500, new { message = "Could not update profile." });
         }
 
-        return RedirectToAction("Profile", new { username = user.UserName });
+        return Ok(new { message = "Profile updated successfully." });
     }
+    
+    // Helper Methods
+    private bool IsImageFile(IFormFile file)
+    {
+        var permittedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
+        return !string.IsNullOrEmpty(extension) && permittedExtensions.Contains(extension);
+    }
+    
     // Deletes an image file from the file system
     private void DeleteImageFile(string imageUrl)
     {
         try
         {
+            // Convert the image URL to a file path
             var wwwRootPath = _webHostEnvironment.WebRootPath;
-            var filePath = Path.Combine(wwwRootPath,
-                imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            var filePath = Path.Combine(wwwRootPath, imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
 
             if (System.IO.File.Exists(filePath))
             {
@@ -244,98 +284,60 @@ public class ProfileController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[ProfileController][DeleteImageFile] Error deleting image file: {ImageUrl}", imageUrl);
+            // Log the exception
+            _logger.LogError(ex, "[PostController][DeleteImageFile] Error deleting image file: {ImageUrl}", imageUrl);
         }
     }
 
-    // Checks if a file is a valid image file based on its extension
-    private bool IsImageFile(IFormFile file)
-    {
-        var permittedExtensions = new[] { ".jpg", ".jpeg", ".png" };
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-
-        return !string.IsNullOrEmpty(extension) && permittedExtensions.Contains(extension);
-    }
-
-    // POST: Follow a user
-    [HttpPost]
-    [Route("/profile/follow")]
-    public async Task<IActionResult> Follow(string username)
+    // POST: Follow a User
+    [HttpPost("follow")]
+    public async Task<IActionResult> Follow([FromBody] string username)
     {
         var userToFollow = await _userManager.FindByNameAsync(username);
         if (userToFollow == null)
         {
-            _logger.LogWarning("[ProfileController][Follow] User '{Username}' not found.", username);
-            return NotFound("User not found");
+            return NotFound(new { message = "User not found." });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(currentUserId))
         {
-            return Unauthorized();
+            return Unauthorized(new { message = "You are not logged in." });
         }
 
         var result = await _userRepository.AddFollowerAsync(currentUserId, userToFollow.Id);
-        
         if (!result)
         {
-            _logger.LogError("[ProfileController][Follow] Failed to follow user '{Username}'.", username);
-            ModelState.AddModelError("", "Could not follow user.");
-            return RedirectToAction("Profile", new { username });
+            return StatusCode(500, new { message = "Could not follow user." });
         }
-        
-        return RedirectToAction("Profile", new { username });
+
+        return Ok(new { message = "User followed successfully." });
     }
 
-    // POST: Unfollow a user
-    [HttpPost]
-    [Route("/profile/unfollow")]
-    public async Task<IActionResult> Unfollow(string username)
+    // POST: Unfollow a User
+    [HttpPost("unfollow")]
+    public async Task<IActionResult> Unfollow([FromBody] string username)
     {
         var userToUnfollow = await _userManager.FindByNameAsync(username);
-        
         if (userToUnfollow == null)
         {
-            _logger.LogWarning("[ProfileController][Unfollow] User '{Username}' not found.", username);
-            return NotFound("User not found");
+            return NotFound(new { message = "User not found." });
         }
 
-        var currentUserId = _userManager.GetUserId(User);
-        
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(currentUserId))
         {
-            return Unauthorized();
+            return Unauthorized(new { message = "You are not logged in." });
         }
 
         var result = await _userRepository.RemoveFollowerAsync(currentUserId, userToUnfollow.Id);
-        
         if (!result)
         {
-            _logger.LogError("[ProfileController][Unfollow] Failed to unfollow user '{Username}'.", username);
-            ModelState.AddModelError("", "Could not unfollow user.");
-            return RedirectToAction("Profile", new { username });
-        }
-        
-        return RedirectToAction("Profile", new { username });
-    }
-    
-    // GET: Minimal User Data for Side Menu
-    [HttpGet("basic")]
-    [Authorize]
-    public async Task<IActionResult> GetBasicProfile()
-    {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null)
-        {
-            return Unauthorized();
+            return StatusCode(500, new { message = "Could not unfollow user." });
         }
 
-        var basicProfile = new SideMenuProfileDto
-        {
-            Username = user.UserName,
-            ProfilePictureUrl = user.ProfilePictureUrl ?? "/path/to/default-avatar.jpg"
-        };
-
-        return Ok(basicProfile);
+        return Ok(new { message = "User unfollowed successfully." });
     }
 }
+
+
