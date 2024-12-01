@@ -60,24 +60,26 @@ public class ProfileController : ControllerBase
         // Create a new SideMenuProfileDto object to pass to the frontend
         var profileDto = new SideMenuProfileDto
         {
-            Username = user.UserName!,
+            Username = user.UserName,
             ProfilePictureUrl = user.ProfilePictureUrl,
+            Email = user.Email,
+            PhoneNumber = user.PhoneNumber,
         };
 
         return Ok(profileDto);
     }
 
-    // GET: Full Profile Data by Username
+    // GET: Full Profile Data by Username or default to current user
     [AllowAnonymous]
     [HttpGet("{username?}")]
     public async Task<IActionResult> GetProfile(string? username)
     {
         // Get the current user's ID
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(username))
+        if (string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(currentUserId))
         {
             // If no username is provided, get the profile of the current user
-            var checkUser = await _userManager.FindByIdAsync(currentUserId!);
+            var checkUser = await _userManager.FindByIdAsync(currentUserId);
             if (checkUser == null)
             {
                 _logger.LogError("Failed to find user with ID '{UserId}'.", currentUserId);
@@ -85,11 +87,12 @@ public class ProfileController : ControllerBase
             }
             // Get the username of the current user
             username = checkUser.UserName;
-            if (username == null)
-            {
-                _logger.LogError("Failed to find username for user with ID '{UserId}'.", currentUserId);
-                return NotFound(new { message = "User not found." });
-            }
+        }
+        
+        if (string.IsNullOrEmpty(username))
+        {
+            _logger.LogError("Failed to find username");
+            return NotFound(new { message = "User not found." });
         }
         
         // Find the user by username
@@ -352,5 +355,3 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "User unfollowed successfully." });
     }
 }
-
-
