@@ -9,12 +9,14 @@ namespace ITPE3200XAPI.DTOs.Profile
         public string? Bio { get; set; }
 
         // URL til profilbildet
-        public string ProfilePictureUrl { get; set; } = string.Empty;
+        public string? ProfilePictureUrl { get; set; } = string.Empty;
 
         // Antall følgere
         public int FollowersCount { get; set; }
 
         // Antall brukere denne personen følger
         public int FollowingCount { get; set; }
+        public bool IsCurrentUserProfile { get; set; }
+        public bool IsFollowing { get; set; }
     }
 }

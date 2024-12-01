@@ -67,10 +67,22 @@ namespace ITPE3200XAPI.DAL.Repositories
             }
         }
 
-        public async Task<bool> IsFollowingAsync(string followerUserId, string followedUserId)
+        public async Task<bool> IsFollowingAsync(string? followerUserId, string followedUserId)
         {
-            return await _context.Followers
-                .AnyAsync(f => f.FollowerUserId == followerUserId && f.FollowedUserId == followedUserId);
+            try
+            {
+                if (string.IsNullOrEmpty(followerUserId) || string.IsNullOrEmpty(followedUserId))
+                {
+                    return false;
+                }
+                return await _context.Followers
+                    .AnyAsync(f => f.FollowerUserId == followerUserId && f.FollowedUserId == followedUserId);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "An error occurred while checking if a user is following another user.");
+                return false;
+            }
         }
     }
 }

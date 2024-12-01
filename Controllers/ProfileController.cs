@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DAL.Repositories;
+using ITPE3200XAPI.DTOs.Auth;
 using ITPE3200XAPI.DTOs.Profile;
 using ITPE3200XAPI.DTOs.Post;
 using Microsoft.AspNetCore.Identity;
@@ -31,133 +32,70 @@ public class ProfileController : ControllerBase
         _postRepository = postRepository;
         _logger = logger;
     }
-
-    [Authorize]
-    [HttpGet("loggedin")]
-    public async Task<IActionResult> GetLoggedInProfile()
+    
+    [HttpGet]
+    [Route("basic")]
+    public async Task<IActionResult> GetBasicProfile()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null)
         {
-            return Unauthorized(new { message = "User not found" });
+            _logger.LogError("Failed to find userId");
+            return Unauthorized(new { message = "User not found." });
         }
 
-        var user = _userManager.FindByIdAsync(userId).Result;
+        var user = await _userManager.FindByIdAsync(userId);
         if (user == null)
         {
-            return Unauthorized(new { message = "User not found" });
-        }
-        
-        var dynamicPosts = await _postRepository.GetPostsByUserAsync(user.Id);
-
-        if (dynamicPosts == null)
-        {
-            // Error in the repository, return an empty view
-            return NotFound("No posts found");
+            _logger.LogError("Failed to find user with ID '{UserId}'.", userId);
+            return Unauthorized(new { message = "User not found." });
         }
 
-        // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
-        dynamicPosts = dynamicPosts.ToList();
-
-        // Get the current user's ID (can be null if the user is not logged in)
-        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        // Construct the list of postDtos to pass to the frontend
-        var postDtos = dynamicPosts.Select(p => new PostDto
-        {
-            PostId = p.PostId,
-            Content = p.Content,
-            ImageUrls = p.Images.Select(img => img.ImageUrl).ToList(),
-            UserName = p.User.UserName,
-            ProfilePicture = p.User.ProfilePictureUrl,
-            IsLikedByCurrentUser = p.Likes.Any(l => l.UserId == currentUserId),
-            IsSavedByCurrentUser = p.SavedPosts.Any(sp => sp.UserId == currentUserId),
-            IsOwnedByCurrentUser = true,
-            LikeCount = p.Likes.Count,
-            CommentCount = p.Comments.Count,
-            Comments = p.Comments
-                .OrderBy(c => c.CreatedAt)
-                .Take(20) // Limit number of comments returned
-                .Select(c => new CommentDto
-                {
-                    CommentId = c.CommentId,
-                    UserName = c.User.UserName,
-                    Content = c.Content,
-                    CreatedAt = c.CreatedAt,
-                    TimeSincePosted = CalculateTimeSincePosted(c.CreatedAt),
-                    IsCreatedByCurrentUser = c.UserId == currentUserId
-                })
-                .ToList()
-        }).ToList();
-
-        var profileDto = new ProfileDto
+        var profileDto = new SideMenuProfileDto
         {
             Username = user.UserName!,
-            Bio = user.Bio,
-            ProfilePictureUrl = user.ProfilePictureUrl ?? "/path/to/default-avatar.jpg",
-            FollowersCount = await _userRepository.GetFollowerCountAsync(user.Id),  // Hent followers count
-            FollowingCount = await _userRepository.GetFollowingCountAsync(user.Id),  // Hent following count
+            ProfilePictureUrl = user.ProfilePictureUrl,
         };
 
-        return Ok(new
-        {
-            profile = profileDto,
-            posts = postDtos
-        });
-    }
-    
-    // Calculates the time since a post or comment was created
-    private string CalculateTimeSincePosted(DateTime createdAt)
-    {
-        var currentTime = DateTime.UtcNow;
-
-        // Check if the createdAt timestamp is in the future
-        if (createdAt > currentTime)
-        {
-            // Log a warning if createdAt is in the future
-            _logger.LogWarning("[HomeController][CalculateTimeSincePosted] CreatedAt timestamp is in the future: {CreatedAt}", createdAt);
-            // Adjust createdAt to current time to prevent negative time spans
-            createdAt = currentTime;
-        }
-
-        var timeSpan = currentTime - createdAt;
-
-        // Determine the appropriate time format
-        if (timeSpan.TotalMinutes < 60)
-        {
-            return $"{(int)timeSpan.TotalMinutes} m ago";
-        }
-        else if (timeSpan.TotalHours < 24)
-        {
-            return $"{(int)timeSpan.TotalHours} h ago";
-        }
-        else
-        {
-            return $"{(int)timeSpan.TotalDays} d ago";
-        }
+        return Ok(profileDto);
     }
 
     // GET: Full Profile Data by Username
-    [HttpGet("{username}")]
-    public async Task<IActionResult> GetProfile(string username)
+    [HttpGet("{username?}")]
+    public async Task<IActionResult> GetProfile(string? username)
     {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        
+        if (string.IsNullOrEmpty(username))
+        {
+            var checkUser = await _userManager.FindByIdAsync(currentUserId!);
+            if (checkUser == null)
+            {
+                _logger.LogError("Failed to find user with ID '{UserId}'.", currentUserId);
+                return NotFound(new { message = "User not found." });
+            }
+            
+            username = checkUser.UserName;
+            if (username == null)
+            {
+                _logger.LogError("Failed to find username for user with ID '{UserId}'.", currentUserId);
+                return NotFound(new { message = "User not found." });
+            }
+        }
+        
         var user = await _userManager.FindByNameAsync(username);
+        
         if (user == null)
         {
+            _logger.LogError("Failed to find user with username '{Username}'.", username);
             return NotFound(new { message = "User not found." });
-        }
-
-        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (currentUserId == null)
-        {
-            return NotFound(new { message = "Not logged in" });
         }
         
         var dynamicPosts = await _postRepository.GetPostsByUserAsync(user.Id);
 
         if (dynamicPosts == null)
         {
-            // Error in the repository, return an empty view
+            _logger.LogError("Failed to find posts for user with ID '{UserId}'.", user.Id);
             return NotFound("No posts found");
         }
 
@@ -200,20 +138,51 @@ public class ProfileController : ControllerBase
         {
             Username = user.UserName!,
             Bio = user.Bio ?? string.Empty,
-            ProfilePictureUrl = user.ProfilePictureUrl ?? "/path/to/default-avatar.jpg",
+            ProfilePictureUrl = user.ProfilePictureUrl,
             FollowersCount = followersCount,  // Should be 0 for new users
             FollowingCount = followingCount,  // Should be 0 for new users
+            IsCurrentUserProfile = user.Id == currentUserId,
+            IsFollowing = await _userRepository.IsFollowingAsync(currentUserId, user.Id)
         };
 
         return Ok(new
         {
             profile = profileDto,
             posts = postDtos,
-            isCurrentUserProfile = user.Id == currentUserId,
-            isFollowing = await _userRepository.IsFollowingAsync(currentUserId, user.Id)
         });
     }
 
+    // Calculates the time since a post or comment was created
+    private string CalculateTimeSincePosted(DateTime createdAt)
+    {
+        var currentTime = DateTime.UtcNow;
+
+        // Check if the createdAt timestamp is in the future
+        if (createdAt > currentTime)
+        {
+            // Log a warning if createdAt is in the future
+            _logger.LogWarning("[HomeController][CalculateTimeSincePosted] CreatedAt timestamp is in the future: {CreatedAt}", createdAt);
+            // Adjust createdAt to current time to prevent negative time spans
+            createdAt = currentTime;
+        }
+
+        var timeSpan = currentTime - createdAt;
+
+        // Determine the appropriate time format
+        if (timeSpan.TotalMinutes < 60)
+        {
+            return $"{(int)timeSpan.TotalMinutes} m ago";
+        }
+        else if (timeSpan.TotalHours < 24)
+        {
+            return $"{(int)timeSpan.TotalHours} h ago";
+        }
+        else
+        {
+            return $"{(int)timeSpan.TotalDays} d ago";
+        }
+    }
+    
     // POST: Edit Profile
     [HttpPost("edit")]
     public async Task<IActionResult> EditProfile(EditProfileDto editProfileDto)
