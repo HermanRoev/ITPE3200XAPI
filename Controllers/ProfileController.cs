@@ -65,14 +65,14 @@ public class ProfileController : ControllerBase
         return Ok(profileDto);
     }
 
-    // GET: Full Profile Data by Username
+    // GET: Full Profile Data by Username or default to current user
     [AllowAnonymous]
     [HttpGet("{username?}")]
     public async Task<IActionResult> GetProfile(string? username)
     {
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         
-        if (string.IsNullOrEmpty(username))
+        if (string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(currentUserId))
         {
             var checkUser = await _userManager.FindByIdAsync(currentUserId);
             if (checkUser == null)
@@ -82,11 +82,12 @@ public class ProfileController : ControllerBase
             }
             
             username = checkUser.UserName;
-            if (username == null)
-            {
-                _logger.LogError("Failed to find username for user with ID '{UserId}'.", currentUserId);
-                return NotFound(new { message = "User not found." });
-            }
+        }
+        
+        if (string.IsNullOrEmpty(username))
+        {
+            _logger.LogError("Failed to find username");
+            return NotFound(new { message = "User not found." });
         }
         
         var user = await _userManager.FindByNameAsync(username);
