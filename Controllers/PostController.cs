@@ -31,19 +31,24 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("CreatePost")]
         public async Task<IActionResult> CreatePost([FromForm] CreatePostDto createPostDto)
         {
+            // Chek if the content, image is empty
             if (string.IsNullOrWhiteSpace(createPostDto.Content))
             {
+                _logger.LogError("Content is required.");
                 return BadRequest(new { message = "Content is required." });
             }
 
             if (createPostDto.ImageFiles == null || !createPostDto.ImageFiles.Any())
             {
+                _logger.LogError("At least one image is required.");
                 return BadRequest(new { message = "At least one image is required." });
             }
-
+            
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
@@ -80,7 +85,8 @@ namespace ITPE3200XAPI.Controllers
                     post.Images.Add(postImage);
                 }
             }
-
+            
+            // Add the post to the repository
             var result = await _postRepository.AddPostAsync(post);
             if (!result)
             {
@@ -96,13 +102,15 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("ToggleLike/{postId}")]
         public async Task<IActionResult> ToggleLike(string postId)
         {
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("User not found.");
                 return Unauthorized();
             }
-
+            
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
@@ -113,6 +121,7 @@ namespace ITPE3200XAPI.Controllers
             bool isLiked = post.Likes.Any(l => l.UserId == userId);
             if (!isLiked)
             {
+                // Add like
                 var result = await _postRepository.AddLikeAsync(postId, userId);
                 if (!result)
                 {
@@ -122,6 +131,7 @@ namespace ITPE3200XAPI.Controllers
             }
             else
             {
+                // Remove like
                 var result = await _postRepository.RemoveLikeAsync(postId, userId);
                 if (!result)
                 {
@@ -138,21 +148,26 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("ToggleSave/{postId}")]
         public async Task<IActionResult> ToggleSave(string postId)
         {
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
-
+            
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
 
             bool isSaved = post.SavedPosts.Any(sp => sp.UserId == userId);
             if (!isSaved)
             {
+                // Add saved post
                 var result = await _postRepository.AddSavedPostAsync(postId, userId);
                 if (!result)
                 {
@@ -162,6 +177,7 @@ namespace ITPE3200XAPI.Controllers
             }
             else
             {
+                // Remove saved post
                 var result = await _postRepository.RemoveSavedPostAsync(postId, userId);
                 if (!result)
                 {
@@ -178,25 +194,32 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("AddComment")]
         public async Task<IActionResult> AddComment([FromBody] AddCommentDto addCommentDto)
         {
+            // Validate the DTO
             if (string.IsNullOrWhiteSpace(addCommentDto.Content))
             {
+                _logger.LogError("Comment content cannot be empty.");
                 return BadRequest(new { message = "Comment content cannot be empty." });
             }
-
+            
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
-
+            
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(addCommentDto.PostId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", addCommentDto.PostId);
                 return NotFound(new { message = "Post not found." });
             }
 
             var comment = new Comment(addCommentDto.PostId, userId, addCommentDto.Content);
-
+            
+            // Add the comment to the post
             var result = await _postRepository.AddCommentAsync(comment);
             if (!result)
             {
@@ -211,19 +234,22 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("EditComment")]
         public async Task<IActionResult> EditComment([FromBody] EditCommentDto editCommentDto)
         {
+            // Validate the DTO
             if (string.IsNullOrWhiteSpace(editCommentDto.Content))
             {
                 _logger.LogError("Comment content cannot be empty.");
                 return BadRequest(new { message = "Comment content cannot be empty." });
             }
-
+            
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("User not found.");
                 return Unauthorized();
             }
-
+            
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(editCommentDto.PostId);
             if (post == null)
             {
@@ -231,6 +257,7 @@ namespace ITPE3200XAPI.Controllers
                 return NotFound(new { message = "Post not found." });
             }
             
+            // Edit the comment
             var result = await _postRepository.EditCommentAsync(editCommentDto.CommentId, userId, editCommentDto.Content);
             if (!result)
             {
@@ -246,6 +273,7 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("DeleteComment")]
         public async Task<IActionResult> DeleteComment([FromQuery] string postId, [FromQuery] string commentId)
         {
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             Console.WriteLine("UserId: " + userId);
             if (string.IsNullOrEmpty(userId))
@@ -253,7 +281,8 @@ namespace ITPE3200XAPI.Controllers
                 _logger.LogError("User not found.");
                 return Unauthorized();
             }
-
+            
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
@@ -261,6 +290,7 @@ namespace ITPE3200XAPI.Controllers
                 return NotFound(new { message = "Post not found." });
             }
             
+            // Delete the comment
             var result = await _postRepository.DeleteCommentAsync(commentId, userId);
             if (!result)
             {
@@ -275,13 +305,15 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("DeletePost/{postId}")]
         public async Task<IActionResult> DeletePost(string postId)
         {
+            // Get the current user's ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("User not found.");
                 return Unauthorized();
             }
-
+            
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
@@ -294,7 +326,8 @@ namespace ITPE3200XAPI.Controllers
             {
                 DeleteImageFile(image.ImageUrl);
             }
-
+            
+            // Delete the post
             var result = await _postRepository.DeletePostAsync(postId, userId);
             if (!result)
             {
@@ -316,7 +349,8 @@ namespace ITPE3200XAPI.Controllers
                 _logger.LogError("[PostController][EditPost] Content is required.");
                 return BadRequest(new { message = "Content is required." });
             }
-
+            
+            // Check if at least one image is provided
             if ((dto.ImageFiles == null || !dto.ImageFiles.Any()) &&
                 (dto.ExistingImageUrls == null || !dto.ExistingImageUrls.Any()))
             {
@@ -324,22 +358,23 @@ namespace ITPE3200XAPI.Controllers
                 return BadRequest(new { message = "At least one image is required." });
             }
 
+            // Check if the user is found
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
             if (string.IsNullOrEmpty(userId))
             {
                 _logger.LogError("[PostController][EditPost] User not found.");
                 return Unauthorized(new { message = "User not found." });
             }
             
+            // Check if PostId is provided
             if(dto.PostId == null)
             {
                 _logger.LogError("[PostController][EditPost] PostId is required.");
                 return BadRequest(new { message = "PostId is required." });
             }
-
-            var postToUpdate = await _postRepository.GetPostByIdAsync(dto.PostId);
             
+            // Get the post to update
+            var postToUpdate = await _postRepository.GetPostByIdAsync(dto.PostId);
             if (postToUpdate == null)
             {
                 _logger.LogError("[PostController][EditPost] Post not found: {PostId}", dto.PostId);
@@ -426,7 +461,6 @@ namespace ITPE3200XAPI.Controllers
 
             // Save changes to the database
             var result = await _postRepository.UpdatePostAsync(postToUpdate, imagesToDelete, imagesToAdd);
-
             if (!result)
             {
                 _logger.LogError("[PostController][EditPost] Error updating post in database.");
@@ -464,6 +498,7 @@ namespace ITPE3200XAPI.Controllers
             var postDto = await GetPostDtoById(postId);
             if (postDto == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
 
@@ -471,20 +506,23 @@ namespace ITPE3200XAPI.Controllers
         }
 
         // Helper Methods
-
         private bool IsImageFile(IFormFile file)
         {
+            // Check if the file is an image
             var permittedExtensions = new[] { ".jpg", ".jpeg", ".png" };
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
             return !string.IsNullOrEmpty(extension) && permittedExtensions.Contains(extension);
         }
-
+        
+        // Get a PostDto by PostId
         private async Task<PostDto?> GetPostDtoById(string postId)
         {
+            // Get the post by ID
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return null;
             }
 
@@ -518,7 +556,8 @@ namespace ITPE3200XAPI.Controllers
 
             return postDto;
         }
-
+        
+        // Calculates the time since a post or comment was created
         private string CalculateTimeSincePosted(DateTime createdAt)
         {
             var currentTime = DateTime.UtcNow;
