@@ -26,8 +26,6 @@ namespace ITPE3200XAPI.Controllers
             _postRepository = postRepository;
             _webHostEnvironment = webHostEnvironment;
         }
-    
-        // TODO: Implement EditPost method
         
         // POST: api/Post/CreatePost
         [HttpPost("CreatePost")]
@@ -58,10 +56,11 @@ namespace ITPE3200XAPI.Controllers
                 {
                     if (!IsImageFile(imageFile))
                     {
+                        _logger.LogError("One or more files are not valid images.");
                         return BadRequest(new { message = "One or more files are not valid images." });
                     }
-
-                    var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(imageFile.FileName)}";
+                    
+                    var fileName = $"{Guid.NewGuid()}";
                     var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
                     var filePath = Path.Combine(uploads, fileName);
 
@@ -100,23 +99,35 @@ namespace ITPE3200XAPI.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
 
             bool isLiked = post.Likes.Any(l => l.UserId == userId);
             if (!isLiked)
             {
-                await _postRepository.AddLikeAsync(postId, userId);
+                var result = await _postRepository.AddLikeAsync(postId, userId);
+                if (!result)
+                {
+                    _logger.LogError("Failed to add like to PostId: {PostId} by UserId: {UserId}", postId, userId);
+                    return StatusCode(500, new { message = "An error occurred while adding the like." });
+                }
             }
             else
             {
-                await _postRepository.RemoveLikeAsync(postId, userId);
+                var result = await _postRepository.RemoveLikeAsync(postId, userId);
+                if (!result)
+                {
+                    _logger.LogError("Failed to remove like from PostId: {PostId} by UserId: {UserId}", postId, userId);
+                    return StatusCode(500, new { message = "An error occurred while removing the like." });
+                }
             }
 
             var postDto = await GetPostDtoById(postId);
@@ -142,11 +153,21 @@ namespace ITPE3200XAPI.Controllers
             bool isSaved = post.SavedPosts.Any(sp => sp.UserId == userId);
             if (!isSaved)
             {
-                await _postRepository.AddSavedPostAsync(postId, userId);
+                var result = await _postRepository.AddSavedPostAsync(postId, userId);
+                if (!result)
+                {
+                    _logger.LogError("Failed to add saved post to PostId: {PostId} by UserId: {UserId}", postId, userId);
+                    return StatusCode(500, new { message = "An error occurred while adding the saved post." });
+                }
             }
             else
             {
-                await _postRepository.RemoveSavedPostAsync(postId, userId);
+                var result = await _postRepository.RemoveSavedPostAsync(postId, userId);
+                if (!result)
+                {
+                    _logger.LogError("Failed to remove saved post from PostId: {PostId} by UserId: {UserId}", postId, userId);
+                    return StatusCode(500, new { message = "An error occurred while removing the saved post." });
+                }
             }
 
             var postDto = await GetPostDtoById(postId);
@@ -192,18 +213,21 @@ namespace ITPE3200XAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(editCommentDto.Content))
             {
+                _logger.LogError("Comment content cannot be empty.");
                 return BadRequest(new { message = "Comment content cannot be empty." });
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(editCommentDto.PostId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", editCommentDto.PostId);
                 return NotFound(new { message = "Post not found." });
             }
             
@@ -226,12 +250,14 @@ namespace ITPE3200XAPI.Controllers
             Console.WriteLine("UserId: " + userId);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
             }
             
@@ -246,20 +272,27 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
-        // TODO: Implement Image delete from file system
         [HttpPost("DeletePost/{postId}")]
         public async Task<IActionResult> DeletePost(string postId)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User not found.");
                 return Unauthorized();
             }
 
             var post = await _postRepository.GetPostByIdAsync(postId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", postId);
                 return NotFound(new { message = "Post not found." });
+            }
+            
+            // Delete image files from the file system
+            foreach (var image in post.Images)
+            {
+                DeleteImageFile(image.ImageUrl);
             }
 
             var result = await _postRepository.DeletePostAsync(postId, userId);
@@ -270,6 +303,158 @@ namespace ITPE3200XAPI.Controllers
             }
 
             return Ok(new { message = "Post deleted successfully." });
+        }
+        
+        // POST: api/Post/EditPost    
+        [HttpPost("editpost")]
+        [Authorize]
+        public async Task<IActionResult> EditPost([FromForm] EditPostDto dto)
+        {
+            // Validate the DTO
+            if (string.IsNullOrEmpty(dto.Content))
+            {
+                _logger.LogError("[PostController][EditPost] Content is required.");
+                return BadRequest(new { message = "Content is required." });
+            }
+
+            if ((dto.ImageFiles == null || !dto.ImageFiles.Any()) &&
+                (dto.ExistingImageUrls == null || !dto.ExistingImageUrls.Any()))
+            {
+                _logger.LogError("[PostController][EditPost] At least one image is required.");
+                return BadRequest(new { message = "At least one image is required." });
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogError("[PostController][EditPost] User not found.");
+                return Unauthorized(new { message = "User not found." });
+            }
+            
+            if(dto.PostId == null)
+            {
+                _logger.LogError("[PostController][EditPost] PostId is required.");
+                return BadRequest(new { message = "PostId is required." });
+            }
+
+            var postToUpdate = await _postRepository.GetPostByIdAsync(dto.PostId);
+            
+            if (postToUpdate == null)
+            {
+                _logger.LogError("[PostController][EditPost] Post not found: {PostId}", dto.PostId);
+                return NotFound(new { message = "Post not found." });
+            }
+
+            // Check ownership
+            if (postToUpdate.UserId != userId)
+            {
+                _logger.LogError("[PostController][EditPost] User does not own the post.");
+                return Forbid();
+            }
+
+            // Update the content
+            postToUpdate.Content = dto.Content;
+
+            // Prepare lists for images to delete and add
+            var imagesToDelete = new List<PostImage>();
+            var imagesToAdd = new List<PostImage>();
+
+            // Identify images to delete (not included in ExistingImageUrls)
+            if (dto.ExistingImageUrls != null && dto.ExistingImageUrls.Any())
+            {
+                imagesToDelete = postToUpdate.Images
+                    .Where(image => !dto.ExistingImageUrls.Contains(image.ImageUrl))
+                    .ToList();
+            }
+            else
+            {
+                // If no ExistingImageUrls are provided, delete all current images
+                imagesToDelete = postToUpdate.Images.ToList();
+            }
+
+            // Remove files from the server for images marked for deletion
+            foreach (var image in imagesToDelete)
+            {
+                DeleteImageFile(image.ImageUrl);
+                postToUpdate.Images.Remove(image);
+            }
+
+            if (dto.ImageFiles != null && dto.ImageFiles.Any())
+            {
+                // Add new images
+                foreach (var imageFile in dto.ImageFiles)
+                {
+                    if (imageFile.Length > 0)
+                    {
+                        // Validate the image file
+                        if (!IsImageFile(imageFile))
+                        {
+                            _logger.LogError("[PostController][EditPost] One or more files are not valid images.");
+                            return BadRequest(new { message = "One or more files are not valid images." });
+                        }
+    
+                        // Generate a unique file name
+                        var fileName = $"{Guid.NewGuid()}";
+                        var uploads = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
+                        var filePath = Path.Combine(uploads, fileName);
+    
+                        // Ensure the uploads directory exists
+                        if (!Directory.Exists(uploads))
+                        {
+                            Directory.CreateDirectory(uploads);
+                        }
+    
+                        // Save the image to the server
+                        using (var fileStream = new FileStream(filePath, FileMode.Create))
+                        {
+                            await imageFile.CopyToAsync(fileStream);
+                        }
+    
+                        // Create PostImage entity and add to the list
+                        var imageEntity = new PostImage(postToUpdate.PostId, $"/uploads/{fileName}");
+                        imagesToAdd.Add(imageEntity);
+                    }
+                }
+            }
+            
+            // Add new images to the post
+            foreach (var image in imagesToAdd)
+            {
+                postToUpdate.Images.Add(image);
+            }
+
+            // Save changes to the database
+            var result = await _postRepository.UpdatePostAsync(postToUpdate, imagesToDelete, imagesToAdd);
+
+            if (!result)
+            {
+                _logger.LogError("[PostController][EditPost] Error updating post in database.");
+                return StatusCode(500, new { message = "An error occurred while updating the post." });
+            }
+
+            return Ok(new {message = "Post updated successfully."});
+        }
+        
+        // Deletes an image file from the file system
+        private void DeleteImageFile(string imageUrl)
+        {
+            try
+            {
+                // Convert the image URL to a file path
+                var wwwRootPath = _webHostEnvironment.WebRootPath;
+                var filePath = Path.Combine(wwwRootPath, imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+                if (System.IO.File.Exists(filePath))
+                {
+                    System.IO.File.Delete(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception
+                _logger.LogError(ex, "[PostController][DeleteImageFile] Error deleting image file: {ImageUrl}", imageUrl);
+            }
         }
 
         // GET: api/Post/GetPostById/{postId}
