@@ -59,6 +59,7 @@ public class ProfileController : ControllerBase
             Username = user.UserName,
             ProfilePictureUrl = user.ProfilePictureUrl,
             Email = user.Email,
+            PhoneNumber = user.PhoneNumber,
         };
 
         return Ok(profileDto);
