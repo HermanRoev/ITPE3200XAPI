@@ -8,7 +8,6 @@ using ITPE3200XAPI.Models;
 using ITPE3200XAPI.DTOs.Auth;
 using ITPE3200XAPI.DTOs.Setting;
 
-
 namespace ITPE3200XAPI.Controllers
 {
     [ApiController]
@@ -17,12 +16,14 @@ namespace ITPE3200XAPI.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly ILogger<AuthController> _logger;
         private readonly IConfiguration _configuration;
 
-        public AuthController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration configuration)
+        public AuthController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ILogger<AuthController> logger, IConfiguration configuration)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _logger = logger;
             _configuration = configuration;
         }
 
@@ -33,11 +34,13 @@ namespace ITPE3200XAPI.Controllers
             // Check if the username or email already exists
             if (await _userManager.FindByNameAsync(registerDto.Username) != null)
             {
+                _logger.LogError("Username is already taken");
                 return BadRequest(new { message = "Username is already taken." });
             }
 
             if (await _userManager.FindByEmailAsync(registerDto.Email) != null)
             {
+                _logger.LogError("Email is already taken");
                 return BadRequest(new { message = "Email is already taken." });
             }
 
@@ -73,9 +76,11 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto model)
         {
-            if (!ModelState.IsValid)
+            // Check if input is empty
+            if (string.IsNullOrWhiteSpace(model.EmailOrUsername) || string.IsNullOrWhiteSpace(model.Password))
             {
-                return BadRequest(ModelState);
+                _logger.LogError("Invalid model state");
+                return BadRequest(new { message = "Content is required" }); // Return validation errors
             }
 
             // Check if input is an email or username
@@ -93,6 +98,7 @@ namespace ITPE3200XAPI.Controllers
 
             if (user == null)
             {
+                _logger.LogError("Invalid email/username or password");
                 return Unauthorized(new { Message = "Invalid email/username or password!" });
             }
 
@@ -111,7 +117,7 @@ namespace ITPE3200XAPI.Controllers
                     Email = user.Email
                 });
             }
-
+            _logger.LogError("Invalid email/username or password");
             return Unauthorized(new { Message = "Invalid email/username or password!" });
         }
 
@@ -127,26 +133,39 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto model)
         {
-            if (!ModelState.IsValid)
+            // Check if input is empty
+            if (string.IsNullOrWhiteSpace(model.OldPassword) || string.IsNullOrWhiteSpace(model.NewPassword) || string.IsNullOrWhiteSpace(model.Password))
             {
-                return BadRequest(ModelState); // Return validation errors
+                _logger.LogError("Invalid model state");
+                return BadRequest(new { message = "Content is required " }); // Return validation errors
             }
 
-            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            // Get the user ID
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogError("User is not authorized");
+                return Unauthorized(new { message = "User is not authorized." });
+            }
+            
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
+                _logger.LogError("User not found");
                 return Unauthorized(new { message = "User not found." });
             }
 
             // Ensure new password and confirm new password match
             if (model.NewPassword != model.Password)
             {
+                _logger.LogError("New password and confirmation password do not match");
                 return BadRequest(new { message = "New password and confirmation password do not match." });
             }
 
             var result = await _userManager.ChangePasswordAsync(user, model.OldPassword, model.NewPassword);
             if (!result.Succeeded)
             {
+                _logger.LogError("Password change failed");
                 return BadRequest(new { message = "Password change failed.", errors = result.Errors });
             }
 
@@ -157,20 +176,33 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("change-email")]
         public async Task<IActionResult> ChangeEmail([FromBody] ChangeEmailDto model)
         {
-            if (!ModelState.IsValid)
+            // Check if input is empty
+            if (string.IsNullOrWhiteSpace(model.NewEmail))
             {
-                return BadRequest(ModelState); // Return validation errors
+                _logger.LogError("Invalid model state");
+                return BadRequest(new { message = "Content is required" }); // Return validation errors
             }
-
-            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            
+            // Get the user ID
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogError("User is not authorized");
+                return Unauthorized(new { message = "User is not authorized." });
+            }
+            
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
+                _logger.LogError("User not found");
                 return Unauthorized(new { message = "User not found." });
             }
-
+            
+            // Check if the new email is already taken
             var result = await _userManager.SetEmailAsync(user, model.NewEmail);
             if (!result.Succeeded)
             {
+                _logger.LogError("Email change failed");
                 return BadRequest(new { message = "Email change failed."});
             }
 
@@ -181,20 +213,25 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("delete-personal-data")]
         public async Task<IActionResult> DeletePersonalData([FromBody] DeletePersonalDataDto model)
         {
-            if (!ModelState.IsValid)
+            // Check if input is empty
+            if (string.IsNullOrWhiteSpace(model.UserId) || string.IsNullOrWhiteSpace(model.Password))
             {
-                return BadRequest(ModelState);
+                _logger.LogError("Invalid model state");
+                return BadRequest(new { message = "Content is required" }); // Return validation errors
             }
-
+            
+            // Get the user ID
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
+                _logger.LogError("User is not authorized");
                 return Unauthorized(new { message = "User is not authorized." });
             }
 
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
+                _logger.LogError("User not found");
                 return NotFound(new { message = "User not found." });
             }
 
@@ -202,17 +239,15 @@ namespace ITPE3200XAPI.Controllers
             var isPasswordValid = await _userManager.CheckPasswordAsync(user, model.Password);
             if (!isPasswordValid)
             {
+                _logger.LogError("Incorrect password. Unable to delete account");
                 return BadRequest(new { message = "Incorrect password. Unable to delete account." });
             }
 
             var result = await _userManager.DeleteAsync(user);
             if (!result.Succeeded)
             {
-                return BadRequest(new 
-                { 
-                    message = "Failed to delete user.", 
-                    errors = result.Errors.Select(e => e.Description).ToList() 
-                });
+                _logger.LogError("Failed to delete user");
+                return BadRequest(new { message = "Failed to delete user."}); 
             }
             return Ok(new { message = "Your personal data has been deleted successfully." });
         }
