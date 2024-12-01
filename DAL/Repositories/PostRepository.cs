@@ -40,7 +40,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while retrieving a post by ID.");
                 return null;
             }
-
         }
         
         // SavedPost methods
@@ -72,8 +71,8 @@ namespace ITPE3200XAPI.DAL.Repositories
                 return null;
             }
         }
-
-
+        
+        // Returns all posts in the database
         public async Task<IEnumerable<Post>?> GetAllPostsAsync()
         {
             try
@@ -94,7 +93,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while retrieving all posts.");
                 return null;
             }
-            
         }
         
         // Add a post to the database
@@ -111,7 +109,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while adding a post.");
                 return false;
             }
-            
         }
         
         // Update a post in the database
@@ -144,7 +141,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while updating a post.");
                 return false;
             }
-
         }
         
         // Delete a post from the database
@@ -212,7 +208,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while deleting a comment.");
                 return false;
             }
-
         }
         
         // Edit a comment in the database
@@ -282,7 +277,6 @@ namespace ITPE3200XAPI.DAL.Repositories
                 _logger.LogError(e, "An error occurred while removing a like.");
                 return false;
             }
-            
         }
         
         // Save post methods
