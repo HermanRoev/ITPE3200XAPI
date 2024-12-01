@@ -105,7 +105,6 @@ namespace ITPE3200XAPI.Controllers
         [HttpGet("/GetSavedPosts")]
         public async Task<IActionResult> GetSavedPosts()
         {
-            
             // Get the current user's ID (can be null if the user is not logged in)
             var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(currentUserId))
@@ -116,7 +115,6 @@ namespace ITPE3200XAPI.Controllers
             
             // Retrieve all dynamic posts from the repository
             var dynamicPosts = await _postRepository.GetSavedPostsByUserIdAsync(currentUserId);
-
             if (dynamicPosts == null)
             {
                 // Error in the repository, return an empty view
@@ -124,10 +122,8 @@ namespace ITPE3200XAPI.Controllers
                 return NotFound("No posts found");
             }
 
-            // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
-            dynamicPosts = dynamicPosts.ToList();
-
             // Construct the list of postDtos to pass to the frontend
+            dynamicPosts = dynamicPosts.ToList();
             var postDtos = dynamicPosts.Select(p => new PostDto
             {
                 PostId = p.PostId,
@@ -276,6 +272,7 @@ namespace ITPE3200XAPI.Controllers
             var post = await _postRepository.GetPostByIdAsync(addCommentDto.PostId);
             if (post == null)
             {
+                _logger.LogError("Post not found: {PostId}", addCommentDto.PostId);
                 return NotFound(new { message = "Post not found." });
             }
 
@@ -293,6 +290,7 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
+        // POST: api/Post/EditComment
         [HttpPost("EditComment")]
         public async Task<IActionResult> EditComment([FromBody] EditCommentDto editCommentDto)
         {
@@ -331,6 +329,7 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
+        // POST: api/Post/DeleteComment
         [HttpPost("DeleteComment")]
         public async Task<IActionResult> DeleteComment([FromQuery] string postId, [FromQuery] string commentId)
         {
@@ -363,6 +362,7 @@ namespace ITPE3200XAPI.Controllers
             return Ok(postDto);
         }
         
+        // POST: api/Post/DeletePost/{postId}
         [HttpPost("DeletePost/{postId}")]
         public async Task<IActionResult> DeletePost(string postId)
         {

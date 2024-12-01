@@ -108,10 +108,8 @@ public class ProfileController : ControllerBase
             return NotFound("No posts found");
         }
 
-        // Convert the IEnumerable<Post> to a List<Post> to avoid multiple enumeration
-        dynamicPosts = dynamicPosts.ToList();
-
         // Construct the list of postDtos to pass to the frontend
+        dynamicPosts = dynamicPosts.ToList();
         var postDtos = dynamicPosts.Select(p => new PostDto
         {
             PostId = p.PostId,
@@ -212,7 +210,6 @@ public class ProfileController : ControllerBase
         }
         
         user.Bio = editProfileDto.Bio;
-        
         var oldProfilePictureUrl = user.ProfilePictureUrl;
         if (editProfileDto.ProfilePicture != null)
         {
@@ -351,7 +348,7 @@ public class ProfileController : ControllerBase
             _logger.LogError("Failed to remove follower for user '{UserId}'.", currentUserId);
             return StatusCode(500, new { message = "Could not unfollow user." });
         }
-
+        
         return Ok(new { message = "User unfollowed successfully." });
     }
 }
