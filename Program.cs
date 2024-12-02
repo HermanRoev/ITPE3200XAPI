@@ -92,7 +92,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", builder =>
     {
-        builder.WithOrigins("http://localhost:3000") // Replace with React app URL
+        builder.WithOrigins("http://localhost:3000") // Allow requests from the React frontend
                .AllowAnyMethod()
                .AllowAnyHeader()
                .AllowCredentials();
