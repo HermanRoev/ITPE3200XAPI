@@ -253,8 +253,10 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("AddComment")]
         public async Task<IActionResult> AddComment([FromBody] AddCommentDto addCommentDto)
         {
+            
+            
             // Validate the DTO
-            if (string.IsNullOrWhiteSpace(addCommentDto.Content))
+            if (string.IsNullOrWhiteSpace(addCommentDto.Content) || string.IsNullOrWhiteSpace(addCommentDto.PostId))
             {
                 _logger.LogError("Comment content cannot be empty.");
                 return BadRequest(new { message = "Comment content cannot be empty." });
@@ -295,10 +297,10 @@ namespace ITPE3200XAPI.Controllers
         public async Task<IActionResult> EditComment([FromBody] EditCommentDto editCommentDto)
         {
             // Validate the DTO
-            if (string.IsNullOrWhiteSpace(editCommentDto.Content))
+            if (string.IsNullOrWhiteSpace(editCommentDto.Content) || string.IsNullOrWhiteSpace(editCommentDto.PostId) || string.IsNullOrWhiteSpace(editCommentDto.CommentId))
             {
-                _logger.LogError("Comment content cannot be empty.");
-                return BadRequest(new { message = "Comment content cannot be empty." });
+                _logger.LogError("Modelstate error.");
+                return BadRequest(new { message = "Modelstate error." });
             }
             
             // Get the current user's ID

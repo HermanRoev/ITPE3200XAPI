@@ -43,6 +43,13 @@ namespace ITPE3200XAPI.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
         {
+            // Check if input is empty
+            if (string.IsNullOrWhiteSpace(registerDto.Username) || string.IsNullOrWhiteSpace(registerDto.Email) || string.IsNullOrWhiteSpace(registerDto.Password))
+            {
+                _logger.LogError("Invalid model state");
+                return BadRequest(new { message = "Content is required" }); // Return validation errors
+            }
+            
             // Check if the username or email already exists
             if (await _userManager.FindByNameAsync(registerDto.Username) != null)
             {
